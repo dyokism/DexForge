@@ -1,0 +1,7 @@
+id=DexForge
+name=DexForge
+version=v1.0
+versionCode=1
+author=dyokism
+description=Reforge your .dex. Clears ART cache and recompiles with optimal filter.
+action=action.sh
