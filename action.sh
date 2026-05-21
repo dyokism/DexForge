@@ -53,12 +53,16 @@ if [ -f /sys/class/power_supply/battery/status ]; then
     fi
 fi
 
-if [ -z "$batt_level" ] || [ "$batt_level" -eq 100 ] && ! [ -f /sys/class/power_supply/battery/capacity ]; then
-    batt_level=$(dumpsys battery | grep level | awk '{print $2}' | tr -d '\r')
-    if dumpsys battery | grep -q "powered: true" 2>/dev/null; then
+if [ -z "$batt_level" ]; then
+    batt_level=$(dumpsys battery 2>/dev/null | grep level | awk '{print $2}' | tr -d '\r')
+    if dumpsys battery 2>/dev/null | grep -q "powered: true"; then
         is_charging=1
     fi
 fi
+
+case "$batt_level" in
+    ''|*[!0-9]*) batt_level=100 ;;
+esac
 
 if [ "$batt_level" -lt 15 ] && [ "$is_charging" -ne 1 ]; then
     log_echo "ERROR: Battery level is too low ($batt_level%) and not charging. Aborting."
@@ -111,10 +115,10 @@ choose_cache_option() {
     local result=""
     while [ $count -lt $delay ]; do
         sleep 1
-        if grep -q 'KEY_VOLUMEUP *DOWN' "$event_file" 2>/dev/null; then
+        if grep -q -i -E '(volumeup|0073)' "$event_file" 2>/dev/null; then
             result="true"
             break
-        elif grep -q 'KEY_VOLUMEDOWN *DOWN' "$event_file" 2>/dev/null; then
+        elif grep -q -i -E '(volumedown|0072)' "$event_file" 2>/dev/null; then
             result="false"
             break
         fi
@@ -146,7 +150,11 @@ elif [ "$TIER" = "mid" ]; then
     elif [ "$PROF_COUNT" -gt 5 ]; then
         FILTER="speed-profile"
     else
-        FILTER="speed"
+        if [ "$SDK_VERSION" -ge 31 ]; then
+            FILTER="verify"
+        else
+            FILTER="quicken"
+        fi
     fi
 else
     if [ "$SDK_VERSION" -ge 31 ]; then
@@ -170,6 +178,7 @@ FAIL_COUNT=0
 # package compile execution
 if [ "$TIER" = "flagship" ]; then
     log_echo "Compiling all packages (bulk compile)..."
+    PKG_COUNT=$(pm list packages | wc -l)
     
     if [ "$CLEAR_CACHE" = "true" ]; then
         reset_out=$(cmd package compile --reset -a 2>&1)
@@ -182,9 +191,7 @@ if [ "$TIER" = "flagship" ]; then
     
     if [ $compile_status -ne 0 ]; then
         log_echo "  ! Bulk compilation failed."
-        FAIL_COUNT=1
-    else
-        PKG_COUNT=$(pm list packages | wc -l)
+        FAIL_COUNT=$PKG_COUNT
     fi
 else
     log_echo "Compiling user-installed packages..."

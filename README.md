@@ -5,14 +5,12 @@
 A professional Magisk/KernelSU module designed to analyze your device resources dynamically and optimize the ART/Dalvik cache with high-efficiency tier-based compilation strategies.
 
 ### How It Works
-Android compiles apps using the Android Runtime (ART). Over time, or after software updates, compiled code can lose optimization, resulting in micro-stutters, slower app launches, and increased battery drain.
-1. **Resource Profiling**: DexForge checks available RAM, free storage space, and Android SDK version.
-2. **Tier-Based Classification**: It classifies the device as Flagship, Mid, or Entry.
-3. **Screen Sleep Prevention**: It dynamically overrides screen sleep timeouts (`screen_off_timeout` + `svc power stayon`) so the display stays awake during compilation regardless of the charger state, then restores original settings automatically upon completion or abort.
-4. **Smart Optimization Routing**:
-   - **Flagship**: Uses bulk compilation (`-a`) to compile all apps, including critical system applications (like Settings, SystemUI) for an ultra-smooth experience.
-   - **Mid & Entry**: Uses focused package-by-package compilation (`-3`) targeting user-installed apps to preserve storage, thermals, and battery health.
-5. **SELinux Safe Pipe**: Captures standard error and standard output to shell variables first, completely bypassing Android's SELinux write restrictions to `/data/adb/`.
+DexForge dynamically optimizes your Android Runtime (ART) cache:
+1. **Profiling**: Reads RAM, free storage, and SDK version to classify your device (Flagship, Mid, or Entry).
+2. **Stay-Awake**: Overrides `screen_off_timeout` to keep the display on during execution, restoring it automatically on exit.
+3. **Smart Routing**: Compiles all packages (`-a`) on flagships for absolute smoothness, or user-installed packages (`-3`) on mid/entry tiers to preserve storage and thermals.
+4. **Subshell Capture**: Captures compile logs via standard shell variables before writing to `/data/adb/` to avoid sub-process permission blockages.
+
 
 ### Safety & Quality Standards
 - **Low Storage Protection**: Compilation aborts instantly if free storage is below 512MB to prevent bootloops.

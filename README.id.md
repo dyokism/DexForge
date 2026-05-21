@@ -5,14 +5,12 @@
 Modul Magisk/KernelSU profesional yang dirancang untuk menganalisis sumber daya perangkat secara dinamis dan mengoptimalkan cache ART/Dalvik menggunakan strategi kompilasi cerdas berbasis tingkatan perangkat (*tier-based*).
 
 ### Cara Kerja
-Android mengompilasi aplikasi menggunakan Android Runtime (ART). Seiring waktu, atau setelah pembaruan sistem, kode terkompilasi dapat kehilangan tingkat optimasinya, mengakibatkan kelambatan peluncuran aplikasi (*sluggishness*) dan pemborosan baterai.
-1. **Profiling Sumber Daya**: DexForge membaca RAM, sisa ruang penyimpanan, dan versi SDK Android HP.
-2. **Klasifikasi Perangkat**: Mengelompokkan perangkat ke dalam kategori Flagship, Mid, atau Entry.
-3. **Pencegahan Layar Tidur**: Melakukan override dinamis pada setelan timeout layar (`screen_off_timeout` + `svc power stayon`) agar layar tetap menyala penuh selama kompilasi tanpa bergantung pada status pengisian daya baterai (charger), lalu memulihkan setelan asli secara otomatis saat selesai atau batal.
-4. **Rute Optimasi Cerdas**:
-   - **Flagship**: Menggunakan kompilasi massal (`-a`) untuk mengompilasi seluruh aplikasi termasuk sistem bawaan (Settings, SystemUI) demi pengalaman penggunaan yang super lancar.
-   - **Mid & Entry**: Menggunakan kompilasi bertahap khusus aplikasi pihak ketiga (`-3`) untuk menghemat penyimpanan, menjaga suhu perangkat, dan menghemat baterai.
-5. **SELinux Safe Pipe**: Mengambil data standar output dan error melalui pipa shell internal terlebih dahulu untuk memintas pembatasan penulisan langsung ke `/data/adb/` oleh kebijakan SELinux Android.
+DexForge mengoptimalkan cache Android Runtime (ART) secara dinamis:
+1. **Profiling**: Membaca RAM, penyimpanan kosong, dan versi SDK untuk menentukan tingkatan perangkat (Flagship, Mid, atau Entry).
+2. **Pencegahan Layar Tidur**: Mengambil alih `screen_off_timeout` agar layar tetap menyala selama proses berlangsung, lalu memulihkannya secara otomatis saat selesai.
+3. **Rute Cerdas**: Mengompilasi seluruh paket (`-a`) pada flagship demi kelancaran maksimal, atau aplikasi pengguna saja (`-3`) pada mid/entry untuk menghemat penyimpanan dan menjaga suhu.
+4. **Penangkapan Keluaran**: Menangkap keluaran log kompilasi via variabel shell sebelum ditulis ke `/data/adb/` untuk menghindari hambatan izin dari sub-proses sistem.
+
 
 ### Standar Keamanan & Kualitas
 - **Proteksi Penyimpanan Rendah**: Proses otomatis dibatalkan jika sisa penyimpanan di bawah 512MB demi mencegah bootloop.
