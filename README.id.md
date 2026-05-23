@@ -2,39 +2,75 @@
 
 # DexForge
 
-Modul Magisk/KernelSU profesional yang dirancang untuk menganalisis sumber daya perangkat secara dinamis dan mengoptimalkan cache ART/Dalvik menggunakan strategi kompilasi cerdas berbasis tingkatan perangkat (*tier-based*).
+**Format ulang cache Android Runtime Anda dengan optimasi dinamis ART/Dalvik berbasis tingkatan perangkat.**
+
+![License](https://img.shields.io/badge/Lisensi-MIT-blue.svg)
+![Android](https://img.shields.io/badge/Android-7.0%2B-green.svg)
+![Version](https://img.shields.io/badge/Versi-1.1-orange.svg)
+![Root](https://img.shields.io/badge/Root-Magisk%20%7C%20KernelSU%20%7C%20APatch-red.svg)
+
+## Ringkasan
+
+DexForge adalah modul Magisk/KernelSU/APatch profesional yang dirancang untuk menganalisis sumber daya perangkat secara dinamis dan mengoptimalkan cache ART (Android Runtime) serta Dalvik menggunakan strategi kompilasi cerdas berbasis tingkatan perangkat (*tier-based*).
 
 ### Cara Kerja
-DexForge mengoptimalkan cache Android Runtime (ART) secara dinamis:
-1. **Profiling**: Membaca RAM, penyimpanan kosong, dan versi SDK untuk menentukan tingkatan perangkat (Flagship, Mid, atau Entry).
-2. **Pencegahan Layar Tidur**: Mengambil alih `screen_off_timeout` agar layar tetap menyala selama proses berlangsung, lalu memulihkannya secara otomatis saat selesai.
-3. **Rute Cerdas**: Mengompilasi seluruh paket (`-a`) pada flagship demi kelancaran maksimal, atau aplikasi pengguna saja (`-3`) pada mid/entry untuk menghemat penyimpanan dan menjaga suhu.
-4. **Penangkapan Keluaran**: Menangkap keluaran log kompilasi via variabel shell sebelum ditulis ke `/data/adb/` untuk menghindari hambatan izin dari sub-proses sistem.
 
+- **Hardware Profiling**: Mendeteksi kapasitas RAM dan spesifikasi HP untuk menentukan metode kompilasi terbaik.
+- **Layar Tetap Menyala**: Menjaga layar ponsel Anda tetap menyala secara otomatis selama proses kompilasi.
+- **Kompilasi Cerdas**: Mengompilasi semua aplikasi (speed) di flagship, atau aplikasi pengguna saja (speed-profile) di HP mid/entry agar hemat ruang.
+- **Log Terpusat**: Menyimpan riwayat hasil kompilasi langsung di dalam folder modul.
 
-### Standar Keamanan & Kualitas
-- **Proteksi Penyimpanan Rendah**: Proses otomatis dibatalkan jika sisa penyimpanan di bawah 512MB demi mencegah bootloop.
-- **Ambang Batas Baterai**: Proses diblokir jika daya baterai di bawah 15% dan tidak terhubung ke pengisi daya.
-- **Pembersihan Cache Interaktif**: Opsi interaktif via tombol volume fisik untuk membersihkan cache sebelum optimasi dimulai, lengkap dengan detail konsekuensi waktu kompilasi yang lebih lama.
-- **Pemasangan Hening (Magisk Silent Install)**: Pemasangan instan tanpa gangguan interaksi tombol volume saat flashing, seluruh interaksi dipindahkan ke tombol Action.
+---
 
-### Persyaratan
-- Magisk v20.4+ atau KernelSU / APatch
-- Android 7.0+ (SDK 24+)
+## Kenapa Harus Menggunakan DexForge?
 
-### Instalasi
+Kalau Anda sering merasakan aplikasi lambat terbuka atau antarmuka sistem patah-patah (micro-stutters) saat digunakan, DexForge membantu menyusun ulang cache sistem Anda demi menghasilkan:
+- **Buka Aplikasi Lebih Cepat**: Mempersiapkan aplikasi Anda agar langsung terbuka instan saat diklik.
+- **Navigasi Super Mulus**: Menghilangkan patah-patah gambar (frame drops) secara menyeluruh.
+- **Hemat Daya Baterai**: Mengurangi beban kerja prosesor saat aplikasi dijalankan.
+- **Optimasi Ramah Penyimpanan**: Menyesuaikan tingkat optimasi dengan kapasitas penyimpanan ponsel Anda.
+
+---
+
+## Fitur Proteksi
+
+- **Anti-Bootloop**: Membatalkan kompilasi secara otomatis jika sisa penyimpanan di bawah 512MB.
+- **Proteksi Baterai**: Menunda proses jika daya baterai di bawah 15% tanpa terhubung ke pengisi daya.
+- **Reset Cache Pilihan**: Membersihkan cache ART menggunakan tombol volume fisik sebelum kompilasi dimulai.
+- **Flashing Instan**: Pemasangan modul tanpa interaksi tombol volume saat flashing di recovery/manajer root.
+
+---
+
+## Persyaratan
+
+| Persyaratan | Detail |
+|-------------|--------|
+| Android | 7.0+ (API 24+) |
+| Root | Magisk v20.4+, KernelSU, atau APatch |
+
+---
+
+## Instalasi
+
 1. Unduh berkas rilis `DexForge-v1.1.zip` terbaru.
 2. Buka aplikasi Magisk, KernelSU, atau APatch.
-3. Masuk ke bagian Modul.
-4. Pilih **Instal dari penyimpanan** lalu tentukan berkas zip yang telah diunduh.
-5. Reboot perangkat Anda.
+3. Instal berkas ZIP melalui tab **Modules** (Modul).
+4. **Reboot** perangkat Anda.
 
-### Cara Pakai
-1. Buka aplikasi root manager Anda.
-2. Navigasikan ke bagian modul.
+---
+
+## Cara Pakai
+
+1. Buka aplikasi manajer root Anda (Magisk, KernelSU, atau APatch).
+2. Masuk ke tab **Modules** (Modul).
 3. Tekan tombol **Action** (atau tombol "Jalankan") pada modul DexForge.
 4. Gunakan tombol volume fisik untuk memilih opsi pembersihan cache dalam waktu 10 detik.
-5. Tunggu proses hingga selesai (layar akan tetap menyala secara otomatis). Reboot perangkat sangat disarankan setelah kompilasi selesai.
+5. Tunggu proses hingga selesai (layar akan tetap menyala secara otomatis).
+6. **Reboot** perangkat sangat disarankan setelah kompilasi selesai.
 
-### Disclaimer
-Ini adalah alat optimasi tingkat lanjut. Meskipun sistem keamanan ketat telah diterapkan, memodifikasi cache sistem melibatkan operasi tingkat rendah. Gunakan secara bijak.
+---
+
+## Pengembang & Lisensi
+
+- **Pengembang**: [dyokism](https://github.com/dyokism)
+- **Lisensi**: MIT
