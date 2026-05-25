@@ -1,6 +1,6 @@
 #!/system/bin/sh
 
-# dexforge customization script
+# shellcheck disable=SC2034
 SKIPUNZIP=0
 
 ui_print "- Installing DexForge..."

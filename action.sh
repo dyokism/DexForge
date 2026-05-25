@@ -1,4 +1,5 @@
 #!/system/bin/sh
+# shellcheck disable=SC3043
 
 # redirect stderr for magisk
 exec 2>&1
