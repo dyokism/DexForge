@@ -6,6 +6,7 @@ exec 2>&1
 
 # define log file
 LOG_FILE="/data/adb/modules/DexForge/dexforge.log"
+mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null
 
 # prevent screen sleep
 ORIG_TIMEOUT=$(settings get system screen_off_timeout 2>/dev/null | tr -d '\r')
@@ -28,16 +29,34 @@ log_echo() {
 }
 
 # initialize log
-echo "execution log - $(date)" > "$LOG_FILE"
+{
+    echo ""
+    echo "=============================="
+    echo "execution log - $(date)"
+} >> "$LOG_FILE"
 
 log_echo "Starting DexForge..."
 START_TIME=$(date +%s)
 
 # device profiling
 MEM_TOTAL=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-FREE_STORAGE_KB=$(df -k /data | awk 'NR==2 {print $4}')
 SDK_VERSION=$(getprop ro.build.version.sdk | tr -d '\r')
-PROF_COUNT=$(find /data/misc/profiles/cur -name "*.prof" 2>/dev/null | wc -l)
+
+case "$MEM_TOTAL" in
+    ''|*[!0-9]*) log_echo "ERROR: Cannot read MemTotal. Aborting."; exit 1 ;;
+esac
+
+case "$SDK_VERSION" in
+    ''|*[!0-9]*) log_echo "ERROR: Cannot read SDK version. Aborting."; exit 1 ;;
+esac
+
+FREE_STORAGE_KB=$(df -k /data 2>/dev/null | awk 'NR==2 {print $4}')
+case "$FREE_STORAGE_KB" in
+    ''|*[!0-9]*) 
+        log_echo "WARNING: Cannot determine free storage. Proceeding with caution."
+        FREE_STORAGE_KB=999999
+        ;;
+esac
 
 log_echo "Profiling device..."
 
@@ -61,9 +80,10 @@ if [ -z "$batt_level" ]; then
     fi
 fi
 
-case "$batt_level" in
-    ''|*[!0-9]*) batt_level=100 ;;
-esac
+if [ -z "$batt_level" ] || ! [ "$batt_level" -ge 0 ] 2>/dev/null; then
+    log_echo "WARNING: Cannot determine battery level. Assuming safe (100%)."
+    batt_level=100
+fi
 
 if [ "$batt_level" -lt 15 ] && [ "$is_charging" -ne 1 ]; then
     log_echo "ERROR: Battery level is too low ($batt_level%) and not charging. Aborting."
@@ -111,6 +131,7 @@ choose_cache_option() {
     
     /system/bin/getevent -l > "$event_file" 2>&1 &
     local getevent_pid=$!
+    sleep 0.5
     
     local count=0
     local result=""
@@ -146,15 +167,19 @@ FILTER="verify"
 if [ "$TIER" = "flagship" ]; then
     FILTER="speed"
 elif [ "$TIER" = "mid" ]; then
+    PROF_COUNT=0
     if [ "$CLEAR_CACHE" = "true" ]; then
         FILTER="speed"
-    elif [ "$PROF_COUNT" -gt 5 ]; then
-        FILTER="speed-profile"
     else
-        if [ "$SDK_VERSION" -ge 31 ]; then
-            FILTER="verify"
+        PROF_COUNT=$(find /data/misc/profiles/cur -name "*.prof" 2>/dev/null | wc -l)
+        if [ "$PROF_COUNT" -gt 5 ]; then
+            FILTER="speed-profile"
         else
-            FILTER="quicken"
+            if [ "$SDK_VERSION" -ge 31 ]; then
+                FILTER="verify"
+            else
+                FILTER="quicken"
+            fi
         fi
     fi
 else
@@ -173,6 +198,10 @@ if ! command -v cmd >/dev/null 2>&1; then
     exit 1
 fi
 
+# detect dry-run argument
+DRY_RUN=0
+[ "$1" = "--dry-run" ] && DRY_RUN=1
+
 PKG_COUNT=0
 FAIL_COUNT=0
 
@@ -181,40 +210,61 @@ if [ "$TIER" = "flagship" ]; then
     log_echo "Compiling all packages (bulk compile)..."
     PKG_COUNT=$(pm list packages | wc -l)
     
-    if [ "$CLEAR_CACHE" = "true" ]; then
-        reset_out=$(cmd package compile --reset -a 2>&1)
-        echo "$reset_out" >> "$LOG_FILE"
-    fi
-    
-    compile_out=$(cmd package compile -m "$FILTER" -a 2>&1)
-    compile_status=$?
-    echo "$compile_out" >> "$LOG_FILE"
-    
-    if [ $compile_status -ne 0 ]; then
-        log_echo "  ! Bulk compilation failed."
-        FAIL_COUNT=$PKG_COUNT
-    fi
-else
-    log_echo "Compiling user-installed packages..."
-    USER_PKGS=$(pm list packages -3 | cut -f2 -d":" | tr -d '\r')
-    TOTAL_PKGS=$(echo "$USER_PKGS" | grep -c "^")
-    CURRENT=1
-
-    for pkg in $USER_PKGS; do
-        log_echo "Reforging ($CURRENT/$TOTAL_PKGS): $pkg"
-        
+    if [ "$DRY_RUN" -eq 1 ]; then
+        log_echo "[DRY-RUN] Would run bulk compile with filter $FILTER"
+    else
         if [ "$CLEAR_CACHE" = "true" ]; then
-            reset_out=$(cmd package compile --reset "$pkg" 2>&1)
+            reset_out=$(cmd package compile --reset -a 2>&1)
             echo "$reset_out" >> "$LOG_FILE"
         fi
         
-        compile_out=$(cmd package compile -m "$FILTER" "$pkg" 2>&1)
+        compile_out=$(cmd package compile -m "$FILTER" -a 2>&1)
         compile_status=$?
         echo "$compile_out" >> "$LOG_FILE"
         
         if [ $compile_status -ne 0 ]; then
-            log_echo "  ! Failed to compile: $pkg"
-            FAIL_COUNT=$((FAIL_COUNT + 1))
+            log_echo "  ! Bulk compilation returned non-zero (status: $compile_status)."
+            FAIL_COUNT=1
+        fi
+    fi
+else
+    log_echo "Compiling user-installed packages..."
+    USER_PKGS=$(pm list packages -3 | cut -f2 -d":" | tr -d '\r' | grep -v '^$')
+    
+    if [ -z "$USER_PKGS" ]; then
+        log_echo "No user-installed packages found. Aborting."
+        exit 0
+    fi
+    
+    TOTAL_PKGS=$(echo "$USER_PKGS" | wc -l)
+    CURRENT=1
+
+    for pkg in $USER_PKGS; do
+        PERCENT=$(( (CURRENT * 100) / TOTAL_PKGS ))
+        log_echo "[$PERCENT%] Optimizing ($CURRENT/$TOTAL_PKGS): $pkg"
+        
+        if [ "$DRY_RUN" -eq 1 ]; then
+            log_echo "  [DRY-RUN] Would compile $pkg with filter $FILTER"
+        else
+            pkg_start=$(date +%s)
+            
+            if [ "$CLEAR_CACHE" = "true" ]; then
+                reset_out=$(cmd package compile --reset "$pkg" 2>&1)
+                echo "$reset_out" >> "$LOG_FILE"
+            fi
+            
+            compile_out=$(cmd package compile -m "$FILTER" "$pkg" 2>&1)
+            compile_status=$?
+            echo "$compile_out" >> "$LOG_FILE"
+            
+            pkg_end=$(date +%s)
+            
+            if [ $compile_status -ne 0 ]; then
+                log_echo "  ! Failed to compile: $pkg"
+                FAIL_COUNT=$((FAIL_COUNT + 1))
+            else
+                log_echo "  OK Done in $((pkg_end - pkg_start))s"
+            fi
         fi
         CURRENT=$((CURRENT + 1))
     done
@@ -235,7 +285,12 @@ log_echo "Failed: $FAIL_COUNT"
 log_echo "Elapsed Time: ${ELAPSED}s"
 log_echo "Done. Log file saved at $LOG_FILE"
 
-if [ -n "$KSU" ] || [ -n "$APATCH" ]; then
+is_non_magisk=0
+[ -n "$KSU" ] && is_non_magisk=1
+[ -n "$APATCH" ] && is_non_magisk=1
+[ -f /data/adb/ap/package_config ] && is_non_magisk=1
+
+if [ "$is_non_magisk" -eq 1 ]; then
     log_echo " "
     log_echo "=================================================="
     log_echo "Compilation Complete"

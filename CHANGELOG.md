@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.2
+- **Robust Environment Validation**: Added defensive regex-based numeric checks for total RAM and Android SDK levels to prevent shell crashes.
+- **Improved Storage & Battery Resilience**: Integrated fallback defaults for `df` storage queries and `dumpsys` battery values under custom or restrictive environments.
+- **Enhanced Log Management**: Implemented `mkdir -p` check for the log directory and switched log initiation to append (`>>`) with clear execution separators to preserve history.
+- **Smart I/O Scheduling**: Restricted prof file searching via lazy evaluation, executing filesystem scans only on the mid-tier where profile compilations are actually used.
+- **APatch Compatibility**: Added robust secondary APatch detection by querying `/data/adb/ap/package_config`.
+- **Developer Dry-Run**: Introduced a `--dry-run` argument allowing developers to test the compilation filter map without physical filesystem writes.
+- **Precise Progress & Timing**: Added dynamic compilation percentages and individual per-package elapsed compilation timers.
+- **Input Warmup Guard**: Added a brief `sleep 0.5` delay during input polling startup to allow device driver registration and eliminate missing volume keystrokes.
+- **Empty List Protection**: Hardened the package query pipeline using line counting filters to prevent statistical errors if zero packages are installed.
+- **Service & Uninstall Stubs**: Created a compatibility `service.sh` stub and an `uninstall.sh` cleanup script to delete module logs on removal.
+
 ## v1.1
 - **Tier-Based Optimization**: Implemented dynamic compiler filter assignment based on hardware RAM (Flagship, Mid, Entry).
 - **Flagship Path**: Uses bulk compilation (`-a`) for comprehensive system-wide speedups.

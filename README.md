@@ -2,42 +2,24 @@
 
 # DexForge
 
-**Reforge your Android Runtime cache with dynamic tier-based ART/Dalvik optimization.**
+**Optimize Android DEX/ART compilations dynamically based on your device hardware.**
 
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Android](https://img.shields.io/badge/Android-7.0%2B-green.svg)
-![Version](https://img.shields.io/badge/Version-1.1-orange.svg)
+![Version](https://img.shields.io/badge/Version-1.2-orange.svg)
 ![Root](https://img.shields.io/badge/Root-Magisk%20%7C%20KernelSU%20%7C%20APatch-red.svg)
 
 ## Overview
 
-DexForge is a professional Magisk/KernelSU/APatch module designed to analyze your device resources dynamically and optimize the ART (Android Runtime) and Dalvik cache using high-efficiency, tier-based compilation strategies.
-
-### How It Works
-
-- **Hardware Profiling**: Detects RAM and specs to route the best compilation method for your phone.
-- **Screen Stay-Awake**: Keeps your display on automatically during the compilation process.
-- **Smart Compiles**: Compiles all apps (speed) on flagships, or user apps only (speed-profile) on mid/entry phones to save space.
-- **Centralized Logs**: Saves clean compilation history directly to the module folder.
+DexForge is a root module that dynamically optimizes Android's DEX/ART compilations. It profiles your device memory and Android version to select the best compiler filter, improving system fluidity without overloading lower-tier hardware.
 
 ---
 
 ## Why Use DexForge?
 
-If you experience app lag or micro-stutters during everyday use, DexForge helps reforge your runtime cache to deliver:
-- **Instant App Launches**: Pre-compiles your apps so they open much faster.
-- **Lag-Free Navigation**: Eliminates system UI stutters and frame drops.
-- **Better Battery Life**: Reduces active CPU overhead when running apps.
-- **Optimized Storage**: Fits the optimization level specifically to your device memory.
-
----
-
-## Safeguards
-
-- **Anti-Bootloop**: Automatically cancels compilation if free storage is below 512MB.
-- **Battery Guard**: Pauses compilation if battery level is below 15% and unplugged from a charger.
-- **Optional Cache Reset**: Clear ART cache using volume keys before recompiling.
-- **Silent Flash**: Installs instantly without volume key prompts during zip flashing.
+- **Tailored Performance**: Automatically selects the best compiler filter (`speed`, `speed-profile`, or `quicken`) based on your device's RAM capacity.
+- **Safety Guards**: Actively checks battery level and storage space before running to prevent errors.
+- **Interactive Cache Reset**: Lets you optionally purge compilation caches before optimization to start fresh.
 
 ---
 
@@ -46,27 +28,75 @@ If you experience app lag or micro-stutters during everyday use, DexForge helps 
 | Requirement | Details |
 |-------------|---------|
 | Android | 7.0+ (API 24+) |
+| Storage | Minimum 512MB free space on `/data` partition |
+| Battery | Minimum 15% charge capacity (waived if actively charging) |
 | Root | Magisk v20.4+, KernelSU, or APatch |
 
 ---
 
 ## Installation
 
-1. Download the latest `DexForge-v1.1.zip` release.
-2. Open Magisk, KernelSU, or APatch manager.
-3. Install the ZIP via the **Modules** tab.
-4. **Reboot** your device.
+1. Install the module ZIP via your root manager's **Modules** tab (Magisk, KernelSU, or APatch).
+2. Trigger the compilation run from your root manager's **Action** section.
+3. **Reboot** your device to fully apply the runtime compilation layout.
 
 ---
 
 ## Usage
 
-1. Open your root manager application (Magisk, KernelSU, or APatch).
-2. Navigate to the **Modules** section.
-3. Tap the **Action** (or "Run") button next to DexForge.
-4. Use volume keys to select your cache clearing choice within 10 seconds.
-5. Wait for the process to complete (the screen will stay awake automatically).
-6. **Reboot** is highly recommended once compilation is complete.
+### Interactive Compiler Configuration
+When you launch the DexForge action script, you will be prompted via physical buttons:
+* Press **Volume UP** to clear compilation caches and perform a clean reforge.
+* Press **Volume DOWN** (or wait 10 seconds) to compile existing states incrementally.
+
+### Dry-Run Simulation (Developer CLI)
+Audits the module compiler output without performing actual filesystem writes (requires root shell):
+```sh
+su
+/data/adb/modules/DexForge/action.sh --dry-run
+```
+
+---
+
+## How It Works
+
+```mermaid
+flowchart TD
+    Start([Start: Flash ZIP Module]) --> Install[1. Extract action.sh & Assets]
+    Install --> Setup[2. Register Action in Root Manager]
+    Setup --> Trigger[3. Trigger action.sh via Action Button]
+    Trigger --> EnvCheck[4. Profile RAM, SDK, Storage & Battery]
+    EnvCheck --> Verification{Validate Constraints?}
+    
+    Verification -- Fail --> Abort[Abort: Safe System Shutdown]
+    Verification -- Pass --> VolumePrompt{Volume UP pressed within 10s?}
+    
+    VolumePrompt -- Yes --> CacheReset[Enable Compiler Cache Reset]
+    VolumePrompt -- No / Timeout --> CompileOnly[Disable Cache Reset]
+    
+    CacheReset --> DeviceTier{Classify RAM Tier?}
+    CompileOnly --> DeviceTier
+    
+    DeviceTier -- Flagship --> Bulk[Run speed bulk compile -a]
+    DeviceTier -- Mid / Entry --> Scan[Scan User-Installed Apps -3]
+    
+    Scan --> ProcessApps[Compile Apps One-by-One with Progress %]
+    Bulk --> Output[Generate dexforge.log & Completion Summary]
+    ProcessApps --> Output
+    
+    Output --> Finish([Finish: Reboot Recommended])
+
+    %% Custom Styles and Colors (Ultra-Muted Slate Theme)
+    classDef startEnd fill:#1b2c24,stroke:#34d399,stroke-width:1.5px,color:#e6f4ea;
+    classDef fail fill:#2c1b1b,stroke:#f87171,stroke-width:1.5px,color:#fce8e6;
+    classDef decision fill:#2d2216,stroke:#fbbf24,stroke-width:1.5px,color:#fef3c7;
+    classDef process fill:#1e293b,stroke:#475569,stroke-width:1px,color:#f1f5f9;
+    
+    class Start,Finish startEnd;
+    class Abort fail;
+    class Verification,VolumePrompt,DeviceTier decision;
+    class Install,Setup,Trigger,EnvCheck,CacheReset,CompileOnly,Bulk,Scan,ProcessApps,Output process;
+```
 
 ---
 
