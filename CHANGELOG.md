@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3
+- **Instant Dry-Run**: Moved dry-run check to initialization to avoid 10-second cache reset prompt blockages.
+- **Robust Storage & Battery Checks**: Resolved `df` line-wrapping using end-relative columns and stabilized `dumpsys` battery regex parsing.
+- **Dynamic & Secure Paths**: Switched to dynamic `getevent` discovery and secured temporary input log files using `mktemp`.
+- **Reliable Stats & Package Loops**: Solved flagship failure stats and utilized a subshell-free here-document loop to support packages with spaces.
+- **Full State Reset on Uninstall**: Enhanced `uninstall.sh` to trigger system-wide compilation resets on module removal.
+- **Optimized Shell Commands**: Consolidated MemTotal extraction into a single-process `awk` lookup to reduce process forks.
+
 ## v1.2
 - **Robust Environment Validation**: Added defensive regex-based numeric checks for total RAM and Android SDK levels to prevent shell crashes.
 - **Improved Storage & Battery Resilience**: Integrated fallback defaults for `df` storage queries and `dumpsys` battery values under custom or restrictive environments.

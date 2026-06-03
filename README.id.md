@@ -6,7 +6,7 @@
 
 ![Lisensi](https://img.shields.io/badge/Lisensi-MIT-blue.svg)
 ![Android](https://img.shields.io/badge/Android-7.0%2B-green.svg)
-![Versi](https://img.shields.io/badge/Versi-1.2-orange.svg)
+![Versi](https://img.shields.io/badge/Versi-1.3-orange.svg)
 ![Root](https://img.shields.io/badge/Root-Magisk%20%7C%20KernelSU%20%7C%20APatch-red.svg)
 
 ## Deskripsi Umum
@@ -34,11 +34,12 @@ DexForge adalah modul root yang secara dinamis mengoptimalkan kompilasi DEX/ART 
 
 ---
 
-## Instalasi
+## Instalasi & Konfigurasi
 
 1. Pasang berkas ZIP modul melalui tab **Modules** di manajer root Anda (Magisk, KernelSU, atau APatch).
 2. Jalankan kompilasi melalui tab **Action** di manajer root Anda.
 3. **Reboot** (Mulai ulang) perangkat Anda untuk menerapkan kompilasi runtime secara penuh.
+4. Periksa log eksekusi di: `/data/adb/modules/DexForge/dexforge.log`
 
 ---
 
@@ -54,6 +55,26 @@ Mengaudit luaran compiler modul tanpa menulis data fisik ke penyimpanan (membutu
 ```sh
 su
 /data/adb/modules/DexForge/action.sh --dry-run
+```
+
+---
+
+## Struktur Berkas
+
+```text
+DexForge/
+├── META-INF/
+│   └── com/
+│       └── google/
+│           └── android/
+│               ├── update-binary
+│               └── updater-script
+├── action.sh        # mesin utama pemilihan dan eksekusi kompilasi
+├── customize.sh     # pemasangan dan konfigurasi saat modul diinstal
+├── module.prop      # properti metadata modul
+├── service.sh       # stub layanan booting
+├── uninstall.sh     # mereset cache filter kompilasi dan menghapus log
+└── update.json      # konfigurasi metadata pembaruan
 ```
 
 ---

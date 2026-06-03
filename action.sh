@@ -38,8 +38,12 @@ log_echo() {
 log_echo "Starting DexForge..."
 START_TIME=$(date +%s)
 
+# detect dry-run argument
+DRY_RUN=0
+[ "$1" = "--dry-run" ] && DRY_RUN=1
+
 # device profiling
-MEM_TOTAL=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+MEM_TOTAL=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
 SDK_VERSION=$(getprop ro.build.version.sdk | tr -d '\r')
 
 case "$MEM_TOTAL" in
@@ -50,7 +54,7 @@ case "$SDK_VERSION" in
     ''|*[!0-9]*) log_echo "ERROR: Cannot read SDK version. Aborting."; exit 1 ;;
 esac
 
-FREE_STORAGE_KB=$(df -k /data 2>/dev/null | awk 'NR==2 {print $4}')
+FREE_STORAGE_KB=$(df /data 2>/dev/null | tail -n 1 | awk '{print $(NF-2)}')
 case "$FREE_STORAGE_KB" in
     ''|*[!0-9]*) 
         log_echo "WARNING: Cannot determine free storage. Proceeding with caution."
@@ -74,7 +78,7 @@ if [ -f /sys/class/power_supply/battery/status ]; then
 fi
 
 if [ -z "$batt_level" ]; then
-    batt_level=$(dumpsys battery 2>/dev/null | grep level | awk '{print $2}' | tr -d '\r')
+    batt_level=$(dumpsys battery 2>/dev/null | awk '/^ +level:/{print $2; exit}' | tr -d '\r')
     if dumpsys battery 2>/dev/null | grep -q "powered: true"; then
         is_charging=1
     fi
@@ -126,10 +130,17 @@ choose_cache_option() {
     log_echo " "
     
     local delay=10
-    local event_file="/data/local/tmp/dexforge_events"
-    rm -f "$event_file"
+    local GETEVENT
+    GETEVENT=$(command -v getevent 2>/dev/null)
+    if [ -z "$GETEVENT" ]; then
+        log_echo "WARNING: getevent not found. Skipping cache check."
+        return
+    fi
     
-    /system/bin/getevent -l > "$event_file" 2>&1 &
+    local event_file
+    event_file=$(mktemp /data/local/tmp/dexforge_XXXXXX)
+    
+    $GETEVENT -l > "$event_file" 2>&1 &
     local getevent_pid=$!
     sleep 0.5
     
@@ -160,7 +171,7 @@ choose_cache_option() {
     fi
 }
 
-choose_cache_option
+[ "$DRY_RUN" -eq 0 ] && choose_cache_option
 
 # filter selection
 FILTER="verify"
@@ -198,10 +209,7 @@ if ! command -v cmd >/dev/null 2>&1; then
     exit 1
 fi
 
-# detect dry-run argument
-DRY_RUN=0
-[ "$1" = "--dry-run" ] && DRY_RUN=1
-
+# packages compile setup
 PKG_COUNT=0
 FAIL_COUNT=0
 
@@ -224,7 +232,7 @@ if [ "$TIER" = "flagship" ]; then
         
         if [ $compile_status -ne 0 ]; then
             log_echo "  ! Bulk compilation returned non-zero (status: $compile_status)."
-            FAIL_COUNT=1
+            FAIL_COUNT=$PKG_COUNT
         fi
     fi
 else
@@ -239,7 +247,8 @@ else
     TOTAL_PKGS=$(echo "$USER_PKGS" | wc -l)
     CURRENT=1
 
-    for pkg in $USER_PKGS; do
+    while IFS= read -r pkg; do
+        [ -z "$pkg" ] && continue
         PERCENT=$(( (CURRENT * 100) / TOTAL_PKGS ))
         log_echo "[$PERCENT%] Optimizing ($CURRENT/$TOTAL_PKGS): $pkg"
         
@@ -267,7 +276,9 @@ else
             fi
         fi
         CURRENT=$((CURRENT + 1))
-    done
+    done <<EOF
+$USER_PKGS
+EOF
     PKG_COUNT=$TOTAL_PKGS
 fi
 

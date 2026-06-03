@@ -6,7 +6,7 @@
 
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Android](https://img.shields.io/badge/Android-7.0%2B-green.svg)
-![Version](https://img.shields.io/badge/Version-1.2-orange.svg)
+![Version](https://img.shields.io/badge/Version-1.3-orange.svg)
 ![Root](https://img.shields.io/badge/Root-Magisk%20%7C%20KernelSU%20%7C%20APatch-red.svg)
 
 ## Overview
@@ -34,11 +34,12 @@ DexForge is a root module that dynamically optimizes Android's DEX/ART compilati
 
 ---
 
-## Installation
+## Installation & Configuration
 
 1. Install the module ZIP via your root manager's **Modules** tab (Magisk, KernelSU, or APatch).
 2. Trigger the compilation run from your root manager's **Action** section.
 3. **Reboot** your device to fully apply the runtime compilation layout.
+4. Check execution logs at: `/data/adb/modules/DexForge/dexforge.log`
 
 ---
 
@@ -54,6 +55,26 @@ Audits the module compiler output without performing actual filesystem writes (r
 ```sh
 su
 /data/adb/modules/DexForge/action.sh --dry-run
+```
+
+---
+
+## File Structure
+
+```text
+DexForge/
+├── META-INF/
+│   └── com/
+│       └── google/
+│           └── android/
+│               ├── update-binary
+│               └── updater-script
+├── action.sh        # core compiler selection and execution engine
+├── customize.sh     # install-time setup and configuration
+├── module.prop      # module metadata properties
+├── service.sh       # boot service stub
+├── uninstall.sh     # resets compile filter caches and removes logs
+└── update.json      # update metadata configuration
 ```
 
 ---
