@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.4
+- Switched hardcoded paths to dynamic `MODDIR` resolution in all scripts.
+- Enforced strict execution (`set -eu`), variable fallbacks, and command guards.
+- Standardized KernelSU/APatch boolean checks and eliminated BusyBox ash UUOC pipelines.
+- Removed non-standard properties from `module.prop` and passed all validation/shellcheck audits.
+
 ## v1.3
 - **Instant Dry-Run**: Moved dry-run check to initialization to avoid 10-second cache reset prompt blockages.
 - **Robust Storage & Battery Checks**: Resolved `df` line-wrapping using end-relative columns and stabilized `dumpsys` battery regex parsing.

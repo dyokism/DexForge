@@ -6,7 +6,7 @@
 
 ![Lisensi](https://img.shields.io/badge/Lisensi-MIT-blue.svg)
 ![Android](https://img.shields.io/badge/Android-7.0%2B-green.svg)
-![Versi](https://img.shields.io/badge/Versi-1.3-orange.svg)
+![Versi](https://img.shields.io/badge/Versi-1.4-orange.svg)
 ![Root](https://img.shields.io/badge/Root-Magisk%20%7C%20KernelSU%20%7C%20APatch-red.svg)
 
 ## Deskripsi Umum

@@ -1,24 +1,36 @@
 #!/system/bin/sh
 # shellcheck disable=SC3043
+set -e
+set -u
 
 # redirect stderr for magisk
 exec 2>&1
 
+MODDIR=${0%/*}
+
 # define log file
-LOG_FILE="/data/adb/modules/DexForge/dexforge.log"
-mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null
+LOG_FILE="$MODDIR/dexforge.log"
+mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
 
 # prevent screen sleep
-ORIG_TIMEOUT=$(settings get system screen_off_timeout 2>/dev/null | tr -d '\r')
-settings put system screen_off_timeout 1800000 2>/dev/null
-svc power stayon true 2>/dev/null
+ORIG_TIMEOUT=$(settings get system screen_off_timeout 2>/dev/null | tr -d '\r' || true)
+if [ -n "${ORIG_TIMEOUT:-}" ] && [ "${ORIG_TIMEOUT:-}" != "null" ]; then
+    settings put system screen_off_timeout 1800000 2>/dev/null || true
+fi
+svc power stayon true 2>/dev/null || true
 
 cleanup() {
+    local EXIT_CODE=$?
     # restore screen sleep on exit
-    if [ -n "$ORIG_TIMEOUT" ] && [ "$ORIG_TIMEOUT" != "null" ]; then
-        settings put system screen_off_timeout "$ORIG_TIMEOUT" 2>/dev/null
+    if [ -n "${ORIG_TIMEOUT:-}" ] && [ "${ORIG_TIMEOUT:-}" != "null" ]; then
+        settings put system screen_off_timeout "${ORIG_TIMEOUT:-}" 2>/dev/null || true
     fi
-    svc power stayon false 2>/dev/null
+    svc power stayon false 2>/dev/null || true
+    
+    if [ "$EXIT_CODE" -ne 0 ]; then
+        echo "FATAL: Module script failed with exit code $EXIT_CODE" | tee /dev/kmsg || true
+    fi
+    exit "$EXIT_CODE"
 }
 trap cleanup EXIT INT TERM
 
@@ -40,11 +52,11 @@ START_TIME=$(date +%s)
 
 # detect dry-run argument
 DRY_RUN=0
-[ "$1" = "--dry-run" ] && DRY_RUN=1
+[ "${1:-}" = "--dry-run" ] && DRY_RUN=1
 
 # device profiling
 MEM_TOTAL=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
-SDK_VERSION=$(getprop ro.build.version.sdk | tr -d '\r')
+SDK_VERSION=$(getprop ro.build.version.sdk 2>/dev/null | tr -d '\r' || true)
 
 case "$MEM_TOTAL" in
     ''|*[!0-9]*) log_echo "ERROR: Cannot read MemTotal. Aborting."; exit 1 ;;
@@ -67,18 +79,18 @@ log_echo "Profiling device..."
 # battery safety check
 batt_level=""
 if [ -f /sys/class/power_supply/battery/capacity ]; then
-    batt_level=$(cat /sys/class/power_supply/battery/capacity | tr -d '\r')
+    batt_level=$(tr -d '\r' < /sys/class/power_supply/battery/capacity)
 fi
 is_charging=0
 if [ -f /sys/class/power_supply/battery/status ]; then
-    batt_status=$(cat /sys/class/power_supply/battery/status | tr -d '\r')
+    batt_status=$(tr -d '\r' < /sys/class/power_supply/battery/status)
     if [ "$batt_status" = "Charging" ] || [ "$batt_status" = "Full" ]; then
         is_charging=1
     fi
 fi
 
 if [ -z "$batt_level" ]; then
-    batt_level=$(dumpsys battery 2>/dev/null | awk '/^ +level:/{print $2; exit}' | tr -d '\r')
+    batt_level=$(dumpsys battery 2>/dev/null | awk '/^ +level:/{print $2; exit}' | tr -d '\r' || true)
     if dumpsys battery 2>/dev/null | grep -q "powered: true"; then
         is_charging=1
     fi
@@ -297,9 +309,8 @@ log_echo "Elapsed Time: ${ELAPSED}s"
 log_echo "Done. Log file saved at $LOG_FILE"
 
 is_non_magisk=0
-[ -n "$KSU" ] && is_non_magisk=1
-[ -n "$APATCH" ] && is_non_magisk=1
-[ -f /data/adb/ap/package_config ] && is_non_magisk=1
+[ "${KSU:-}" = "true" ] && is_non_magisk=1
+[ "${APATCH:-}" = "true" ] && is_non_magisk=1
 
 if [ "$is_non_magisk" -eq 1 ]; then
     log_echo " "
