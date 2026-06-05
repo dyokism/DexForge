@@ -2,5 +2,5 @@
   "version": "v1.4",
   "versionCode": 5,
   "zipUrl": "https://github.com/dyokism/DexForge/releases/latest/download/DexForge.zip",
-  "changelog": "https://raw.githubusercontent.com/dyokism/DexForge/main/CHANGELOG.md"
+  "changelog": "https://raw.githubusercontent.com/dyokism/DexForge/main/module/changelog.md"
 }

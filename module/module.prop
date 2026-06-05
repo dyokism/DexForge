@@ -4,4 +4,4 @@ version=v1.4
 versionCode=5
 author=dyokism
 description=Reforge your .dex. Clears ART cache and recompiles with optimal filter.
-updateJson=https://raw.githubusercontent.com/dyokism/DexForge/main/update.json
+updateJson=https://raw.githubusercontent.com/dyokism/DexForge/main/module/update.json
