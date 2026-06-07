@@ -1,10 +1,7 @@
 #!/system/bin/sh
-MODDIR=${0%/*}
+# dexforge uninstaller script (posix compliant busybox ash)
 
-# reset optimization state
-if command -v cmd >/dev/null 2>&1; then
-    cmd package compile --reset -a 2>/dev/null || true
-fi
+MODDIR="${0%/*}"
 
-# clean up dexforge log file
+# clean up log files
 rm -f "$MODDIR/dexforge.log"

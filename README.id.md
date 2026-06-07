@@ -1,25 +1,71 @@
-[English](README.md) | [Bahasa Indonesia](README.id.md)
-
 # DexForge
 
-**Optimalkan kompilasi DEX/ART Android secara dinamis berdasarkan spesifikasi hardware perangkat Anda.**
+<p align="center">
+  <img src="DexForge.webp" alt="Logo DexForge" width="600">
+</p>
 
-![Lisensi](https://img.shields.io/badge/Lisensi-MIT-blue.svg)
-![Android](https://img.shields.io/badge/Android-7.0%2B-green.svg)
-![Versi](https://img.shields.io/badge/Versi-1.4-orange.svg)
-![Root](https://img.shields.io/badge/Root-Magisk%20%7C%20KernelSU%20%7C%20APatch-red.svg)
+<p align="center">
+  <strong>Optimalkan kompilasi DEX/ART Android secara dinamis berdasarkan profil perangkat keras perangkat Anda.</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Lisensi-MIT-d35400?style=for-the-badge" alt="Lisensi">
+  <img src="https://img.shields.io/badge/Android-7.0%2B-ff7300?style=for-the-badge&logo=android&logoColor=white" alt="Android">
+  <img src="https://img.shields.io/badge/Versi-2.0-ff9f0a?style=for-the-badge&logo=github&logoColor=white" alt="Versi">
+  <img src="https://img.shields.io/badge/Root-KSU%20%7C%20APatch%20%7C%20Magisk-e65c00?style=for-the-badge&logo=linux&logoColor=white" alt="Root">
+  <br>
+  <br>
+  <a href="README.md">English</a> | <a href="README.id.md">Bahasa Indonesia</a>
+</p>
 
 ## Deskripsi Umum
 
-DexForge adalah modul root yang secara dinamis mengoptimalkan kompilasi DEX/ART Android. Modul ini menganalisis RAM dan versi Android Anda untuk memilih filter kompilasi terbaik, meningkatkan kelancaran sistem tanpa membebani hardware berspesifikasi rendah.
+DexForge adalah modul root lintas platform Android yang dirancang untuk mengoptimalkan kompilasi DEX/ART sistem secara dinamis. Dengan menganalisis tier RAM perangkat, SDK level, status baterai, dan sisa penyimpanan saat eksekusi, DexForge secara otomatis menetapkan filter kompilasi yang paling sesuai—mulai dari `speed` untuk perangkat flagship berspesifikasi tinggi, hingga `speed-profile` atau `quicken` untuk perangkat keras entry dan mid-tier. Analisis berbasis perangkat keras ini memastikan waktu muat aplikasi dipersingkat dan kelancaran sistem dimaksimalkan tanpa membebani perangkat berspesifikasi lebih rendah.
 
 ---
 
 ## Mengapa Memilih DexForge?
 
-- **Performa yang Disesuaikan**: Memilih otomatis filter kompilasi terbaik (`speed`, `speed-profile`, atau `quicken`) sesuai kapasitas RAM perangkat.
-- **Proteksi Keamanan**: Memeriksa daya baterai dan sisa ruang penyimpanan secara aktif sebelum berjalan untuk menghindari error.
-- **Reset Cache Opsional**: Memungkinkan pembersihan cache kompilasi sebelum optimasi dimulai jika Anda ingin segar dari awal.
+- **Performa Terarah**: Memilih filter kompilasi terbaik secara otomatis (`speed`, `speed-profile`, atau `quicken`) sesuai dengan kapasitas RAM perangkat Anda.
+- **Proteksi Failsafe**: Secara aktif memverifikasi kapasitas baterai dan sisa penyimpanan sebelum berjalan untuk mencegah kerusakan data sistem.
+- **Reset Cache Interaktif**: Menyediakan opsi pembersihan cache kompilasi sebelum proses optimasi dimulai untuk penyegaran penuh.
+
+---
+
+## Cara Penggunaan
+
+### 1. Instalasi & Konfigurasi
+* Unduh berkas `DexForge.zip` terbaru dari halaman [Releases](https://github.com/dyokism/DexForge/releases).
+* Pasang berkas ZIP melalui tab **Modules** di manajer root Anda (Magisk, KernelSU, atau APatch).
+* **Mulai ulang (reboot)** perangkat Anda untuk menginisialisasi layanan latar belakang dan pengawas thread inti secara penuh.
+
+### 2. Eksekusi Aksi (Tombol Action)
+* Jalankan mesin kompilasi dengan mengetuk tombol **Action** di manajer root Anda.
+* **Perintah Cache Interaktif**: Saat awal berjalan, tekan tombol **Volume ATAS** untuk melakukan pembersihan penuh (menghapus cache kompilasi yang ada terlebih dahulu) atau **Volume BAWAH** (atau tunggu 10 detik) untuk menjalankan kompilasi bertahap (incremental).
+* Hasil optimasi dan catatan eksekusi disimpan di: `/data/adb/modules/DexForge/dexforge.log`
+
+### 3. Mode Audit Dry-Run (CLI)
+* Untuk mensimulasikan eksekusi dan memverifikasi pemilihan compiler tanpa menulis data fisik ke penyimpanan, jalankan perintah berikut menggunakan root shell:
+  ```sh
+  su
+  /data/adb/modules/DexForge/action.sh --dry-run
+  ```
+
+---
+
+## Detail Teknis
+
+### Klasifikasi Berbasis Perangkat Keras
+* **Tier Flagship (> 6144 MB RAM)**: Menerapkan filter `speed` (kompilasi penuh kode mesin AOT) untuk efisiensi CPU maksimal.
+* **Tier Mid (3072 MB - 6144 MB RAM)**: Menerapkan filter `speed-profile` (Profile-Guided Optimization). Ini berfungsi sebagai pelindung, mengabaikan permintaan kompilasi `speed` penuh untuk melindungi sistem dari kehabisan ruang penyimpanan dan kegagalan memori virtual (OOM). Jika data profil tidak mencukupi, sistem akan beralih ke `verify` (API >= 31) atau `quicken` (API < 31).
+* **Tier Entry (<= 3072 MB RAM)**: Menerapkan filter `verify` (API >= 31) atau `quicken` (API < 31) untuk menjaga penggunaan ruang penyimpanan tetap minimal dan mencegah tekanan memori pada RAM fisik.
+
+### Protokol Validasi Keamanan Sistem
+* **Proteksi Penyimpanan**: Memeriksa sisa penyimpanan kontigu pada partisi `/data` menggunakan pemisahan kolom whitespace POSIX atas output `df -k`. Jika sisa penyimpanan di bawah **512MB**, proses kompilasi akan dihentikan untuk mencegah kerusakan sistem file dan bootloop.
+* **Proteksi Baterai**: Mengambil metrik baterai dari sysfs `/sys/class/power_supply/battery/` dengan fallback otomatis ke layanan binder `dumpsys battery`. Eksekusi akan diblokir jika perangkat tidak sedang diisi daya dan kapasitas baterai di bawah **15%**.
+
+### Pengaturan Core Late-Boot (`service.sh`)
+* **Core Affinity Pinning**: Menjalankan pengawas pemungutan suara awal booting yang mengait ke `sys.boot_completed`. Setelah booting selesai, ia mengonfigurasi properti sistem (`dalvik.vm.dex2oat-cpu-set=0,1,2,3` dan `dalvik.vm.dex2oat-threads=4`) untuk membatasi operasi compiler latar belakang hanya pada core efisiensi logis. Langkah ini mencegah throttling termal CPU dan menjaga responsivitas sistem.
 
 ---
 
@@ -30,32 +76,7 @@ DexForge adalah modul root yang secara dinamis mengoptimalkan kompilasi DEX/ART 
 | Android | 7.0+ (API 24+) |
 | Penyimpanan | Sisa penyimpanan minimal 512MB pada partisi `/data` |
 | Baterai | Kapasitas minimal 15% (diabaikan jika perangkat sedang diisi daya) |
-| Root | Magisk v20.4+, KernelSU, atau APatch |
-
----
-
-## Instalasi & Konfigurasi
-
-1. Pasang berkas ZIP modul melalui tab **Modules** di manajer root Anda (Magisk, KernelSU, atau APatch).
-2. Jalankan kompilasi melalui tab **Action** di manajer root Anda.
-3. **Reboot** (Mulai ulang) perangkat Anda untuk menerapkan kompilasi runtime secara penuh.
-4. Periksa log eksekusi di: `/data/adb/modules/DexForge/dexforge.log`
-
----
-
-## Penggunaan
-
-### Konfigurasi Kompilasi Interaktif
-Saat Anda menjalankan script aksi DexForge, Anda akan diminta menekan tombol fisik perangkat:
-* Tekan **Volume ATAS** untuk membersihkan cache kompilasi dan melakukan optimasi bersih.
-* Tekan **Volume BAWAH** (atau tunggu 10 detik) untuk mengkompilasi data yang ada secara bertahap.
-
-### Simulasi Dry-Run (Developer CLI)
-Mengaudit luaran compiler modul tanpa menulis data fisik ke penyimpanan (membutuhkan root shell):
-```sh
-su
-/data/adb/modules/DexForge/action.sh --dry-run
-```
+| Root | Magisk, KernelSU, atau APatch |
 
 ---
 
@@ -70,10 +91,11 @@ DexForge/
 │               ├── update-binary
 │               └── updater-script
 ├── action.sh        # mesin utama pemilihan dan eksekusi kompilasi
+├── changelog.md     # catatan perubahan untuk melacak riwayat versi modul
 ├── customize.sh     # pemasangan dan konfigurasi saat modul diinstal
-├── module.prop      # properti metadata modul
-├── service.sh       # stub layanan booting
-├── uninstall.sh     # mereset cache filter kompilasi dan menghapus log
+├── module.prop      # metadata properti modul
+├── service.sh       # late-boot watchdog & pengatur thread/core affinity
+├── uninstall.sh     # menghapus berkas sisa saat modul dihapus
 └── update.json      # konfigurasi metadata pembaruan
 ```
 
@@ -121,7 +143,11 @@ flowchart TD
 
 ---
 
-## Pengembang & Lisensi
+## Pengembang, Kredit & Lisensi
 
 - **Pengembang**: [dyokism](https://github.com/dyokism)
-- **Lisensi**: MIT
+- **Lisensi**: [MIT](LICENSE)
+- **Kredit & Apresiasi**:
+  - **Android Runtime (ART)** oleh [Google](https://source.android.com/devices/tech/dalvik)
+  - **Manajer Root**: [Magisk](https://github.com/topjohnwu/Magisk), [KernelSU](https://github.com/tiann/KernelSU), dan [APatch](https://github.com/bmax121/APatch)
+```
