@@ -331,7 +331,7 @@ if [ "$tier" = "flagship" ]; then
         execute_cmd cmd package compile --reset -a
     fi
     
-    local compile_status=0
+    compile_status=0
     execute_cmd cmd package compile -m "$filter" -a || compile_status=$?
     
     if [ "$compile_status" -ne 0 ]; then
@@ -373,7 +373,7 @@ EOF
             pkg_start=$(date +%s)
             
             # execute compilation and capture exit status
-            local compile_status=0
+            compile_status=0
             execute_cmd cmd package compile -m "$filter" "$pkg" || compile_status=$?
             
             pkg_end=$(date +%s)
