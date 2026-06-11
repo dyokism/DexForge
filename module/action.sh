@@ -57,7 +57,7 @@ log_echo() {
     echo "=========================================="
     echo "DexForge Run - $(date)"
     echo "=========================================="
-} >> "$LOG_FILE"
+} > "$LOG_FILE"
 
 log_echo "Starting DexForge optimization engine..."
 START_TIME=$(date +%s)
