@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-d35400?style=for-the-badge" alt="License">
   <img src="https://img.shields.io/badge/Android-7.0%2B-ff7300?style=for-the-badge&logo=android&logoColor=white" alt="Android">
-  <img src="https://img.shields.io/badge/Version-2.0-ff9f0a?style=for-the-badge&logo=github&logoColor=white" alt="Version">
+  <img src="https://img.shields.io/badge/Version-2.1-ff9f0a?style=for-the-badge&logo=github&logoColor=white" alt="Version">
   <img src="https://img.shields.io/badge/Root-KSU%20%7C%20APatch%20%7C%20Magisk-e65c00?style=for-the-badge&logo=linux&logoColor=white" alt="Root">
   <br>
   <br>
@@ -20,13 +20,13 @@
 
 ## Overview
 
-DexForge is a cross-platform Android root module designed to dynamically optimize the system's DEX/ART compilations. By profiling the device's RAM tier, SDK level, battery state, and available storage during execution, DexForge automatically assigns the most appropriate compilation filter—ranging from `speed` for flagship devices to `speed-profile` or `quicken` for entry and mid-tier hardware. This hardware-aware profiling ensures that app launch times are minimized and system fluidity is maximized without overloading lower-spec devices.
+DexForge is a cross-platform Android root module designed to dynamically optimize the system's DEX/ART compilations. By profiling the device's RAM tier, SDK level, battery state, and available storage during execution, DexForge automatically assigns the most appropriate compilation filter—ranging from `speed` for flagship devices to `speed-profile` or `quicken`/`verify` for entry and mid-tier hardware based on a dynamic usage-aware priority gradient. This hardware-aware profiling ensures that app launch times are minimized and system fluidity is maximized without overloading lower-spec devices.
 
 ---
 
 ## Why Use DexForge?
 
-- **Tailored Performance**: Automatically selects the best compiler filter (`speed`, `speed-profile`, or `quicken`) based on your device's RAM capacity.
+- **Tailored Performance**: Automatically selects the best compiler filter (`speed`, `speed-profile`, or `verify`/`quicken`) based on your device's RAM capacity and app usage statistics.
 - **Safety Guards**: Actively checks battery level and storage space before running to prevent errors.
 - **Interactive Cache Reset**: Lets you optionally purge compilation caches before optimization to start fresh.
 
@@ -55,17 +55,17 @@ DexForge is a cross-platform Android root module designed to dynamically optimiz
 
 ## Technical Details
 
-### Hardware-Based Classification
-* **Flagship Tier (> 6144 MB RAM)**: Assigns the `speed` filter (unconditional AOT machine code compilation) for maximum CPU efficiency.
-* **Mid Tier (3072 MB - 6144 MB RAM)**: Assigns the `speed-profile` filter (Profile-Guided Optimization). It acts as a protective wrapper, overriding requests for full `speed` compilation to protect the system from storage exhaustion and virtual memory out-of-memory (OOM) failures. If profile data is insufficient, it safely falls back to `verify` (API >= 31) or `quicken` (API < 31).
-* **Entry Tier (<= 3072 MB RAM)**: Assigns the `verify` filter (API >= 31) or `quicken` filter (API < 31) to keep the non-volatile storage footprint minimal and prevent physical RAM pressure.
+### Hardware-Based Classification & Usage-Aware Priority
+* **Flagship Tier (> 6144 MB RAM)**: Compiles all system and user packages using individual tracking loops (preventing CPU locks) targeting the `speed` filter. During full runs (`CLEAR_CACHE=true`), it applies a usage-aware gradient where unused packages are set to `speed-profile`. During incremental runs, it skips usagestats parsing to maximize execution speed.
+* **Mid Tier (3072 MB - 6144 MB RAM)**: Assigns a usage-aware filter gradient where top used apps get `speed`, normal apps get `speed-profile`, and unused apps get `verify` (or `quicken` on older Android versions) to prevent OOM failures and storage exhaustion.
+* **Entry Tier (<= 3072 MB RAM)**: Limits compilation to `speed-profile` for top apps and `verify`/`quicken` for the rest to conserve CPU and storage.
 
 ### System Safety Validation Protocols
-* **Storage Failsafe**: Verifies contiguous free space on the `/data` partition using standard POSIX white-space tokenization over `df -k` output. If available storage is under **512MB**, compilation terminates to prevent filesystem corruption and bootloops.
-* **Battery Failsafe**: Queries PMIC sysfs metrics `/sys/class/power_supply/battery/` with an automated fallback to the `dumpsys battery` binder service. Execution is blocked if the device is not charging and the capacity is under **15%**.
+* **Storage Failsafe**: Verifies contiguous free space on the `/data` partition. If available storage is under **512MB**, compilation terminates to prevent bootloops.
+* **Battery Failsafe**: Queries battery status via PMIC sysfs metrics with fallback to `dumpsys battery`. Execution is blocked if the device is not charging and capacity is under **15%**.
 
 ### Late-Boot Core Regulation (`service.sh`)
-* **Core Affinity Pinning**: Spawns an early-boot polling watchdog that hooks onto `sys.boot_completed`. Upon boot completion, it configures system properties (`dalvik.vm.dex2oat-cpu-set=0,1,2,3` and `dalvik.vm.dex2oat-threads=4`) to restrict background compiler operations to logical efficiency cores. This prevents CPU thermal throttling and maintains system responsiveness.
+* **Dynamic Core Affinity**: Watchdog dynamically resolves the lower half of logical cores on boot completion (handling prime-first CPU topologies safely) and restricts background compiler threads (`dalvik.vm.dex2oat-cpu-set` and `dalvik.vm.dex2oat-threads`) to LITTLE efficiency cores to prevent CPU thermal throttling and user interface lag.
 
 ---
 
@@ -103,30 +103,59 @@ DexForge/
 
 ## How It Works
 
+### Scenario A: Late-Boot Core Regulator (`service.sh`)
+
 ```mermaid
 flowchart TD
-    Start([Start: Flash ZIP Module]) --> Install[1. Extract action.sh & Assets]
-    Install --> Setup[2. Register Action in Root Manager]
-    Setup --> Trigger[3. Trigger action.sh via Action Button]
-    Trigger --> EnvCheck[4. Profile RAM, SDK, Storage & Battery]
+    StartA([Start: Late-Boot Trigger]) --> PollBoot[Poll sys.boot_completed]
+    PollBoot --> BootCheck{Boot Completed or Timeout?}
+    
+    BootCheck -- No --> Sleep[Sleep 2s & Retry]
+    Sleep --> PollBoot
+    
+    BootCheck -- Yes --> SetFilters[Set bg-dexopt & shared filters]
+    SetFilters --> ResolveCPU[Resolve CPU Mask dynamically]
+    ResolveCPU --> SetAffinity[Set dex2oat-cpu-set & threads]
+    
+    SetAffinity --> FinishA([Finish: Tuning Applied])
+
+    %% Custom Styles and Colors (Ultra-Muted Slate Theme)
+    classDef startEnd fill:#1b2c24,stroke:#34d399,stroke-width:1.5px,color:#e6f4ea;
+    classDef fail fill:#2c1b1b,stroke:#f87171,stroke-width:1.5px,color:#fce8e6;
+    classDef decision fill:#2d2216,stroke:#fbbf24,stroke-width:1.5px,color:#fef3c7;
+    classDef process fill:#1e293b,stroke:#475569,stroke-width:1px,color:#f1f5f9;
+
+    class StartA,FinishA startEnd;
+    class BootCheck decision;
+    class PollBoot,Sleep,SetFilters,ResolveCPU,SetAffinity process;
+```
+
+### Scenario B: Manual Optimization Engine (`action.sh`)
+
+```mermaid
+flowchart TD
+    Start([Start: Trigger Action]) --> EnvCheck[1. Profile RAM, SDK, Storage & Battery]
     EnvCheck --> Verification{Validate Constraints?}
     
-    Verification -- Fail --> Abort[Abort: Safe System Shutdown]
+    Verification -- Fail --> Abort[Abort: Log & Exit safely]
     Verification -- Pass --> VolumePrompt{Volume UP pressed within 10s?}
     
-    VolumePrompt -- Yes --> CacheReset[Enable Compiler Cache Reset]
-    VolumePrompt -- No / Timeout --> CompileOnly[Disable Cache Reset]
+    VolumePrompt -- Yes --> CacheReset[Set CLEAR_CACHE = true]
+    VolumePrompt -- No / Timeout --> CompileOnly[Set CLEAR_CACHE = false]
     
     CacheReset --> DeviceTier{Classify RAM Tier?}
     CompileOnly --> DeviceTier
     
-    DeviceTier -- Flagship --> Bulk[Run speed bulk compile -a]
-    DeviceTier -- Mid / Entry --> Scan[Scan User-Installed Apps -3]
+    DeviceTier -- Flagship --> FlagshipBranch{CLEAR_CACHE = true?}
+    DeviceTier -- Mid / Entry --> Usagestats[Parse dumpsys usagestats]
     
-    Scan --> ProcessApps[Compile Apps One-by-One with Progress %]
-    Bulk --> Output[Generate dexforge.log & Completion Summary]
-    ProcessApps --> Output
+    FlagshipBranch -- Yes --> Usagestats
+    FlagshipBranch -- No --> FlatFilter[Disable Usage-Aware Mode]
     
+    Usagestats --> PackageLoop[Scan Packages & Compile One-by-One with Gradient]
+    FlatFilter --> PackageLoop
+    
+    PackageLoop --> Output[Generate dexforge.log & Summary]
     Output --> Finish([Finish: Reboot Recommended])
 
     %% Custom Styles and Colors (Ultra-Muted Slate Theme)
@@ -137,8 +166,8 @@ flowchart TD
     
     class Start,Finish startEnd;
     class Abort fail;
-    class Verification,VolumePrompt,DeviceTier decision;
-    class Install,Setup,Trigger,EnvCheck,CacheReset,CompileOnly,Bulk,Scan,ProcessApps,Output process;
+    class Verification,VolumePrompt,DeviceTier,FlagshipBranch decision;
+    class EnvCheck,CacheReset,CompileOnly,Usagestats,FlatFilter,PackageLoop,Output process;
 ```
 
 ---

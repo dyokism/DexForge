@@ -3,6 +3,10 @@
 
 # prevent exit calls as it is sourced
 # verify installation environment
+if [ -z "$API" ] || [ "$API" -lt 24 ]; then
+  abort "[!] Unsupported Android version (API $API). Requires API 24+ (Nougat+)."
+fi
+
 ui_print "- Installing DexForge..."
 ui_print "- Target Path: $MODPATH"
 

@@ -1,6 +1,6 @@
 {
-  "version": "v2.0",
-  "versionCode": 200,
+  "version": "v2.1",
+  "versionCode": 210,
   "zipUrl": "https://raw.githubusercontent.com/dyokism/DexForge/main/DexForge.zip",
   "changelog": "https://raw.githubusercontent.com/dyokism/DexForge/main/module/changelog.md"
 }

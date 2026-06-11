@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Lisensi-MIT-d35400?style=for-the-badge" alt="Lisensi">
   <img src="https://img.shields.io/badge/Android-7.0%2B-ff7300?style=for-the-badge&logo=android&logoColor=white" alt="Android">
-  <img src="https://img.shields.io/badge/Versi-2.0-ff9f0a?style=for-the-badge&logo=github&logoColor=white" alt="Versi">
+  <img src="https://img.shields.io/badge/Versi-2.1-ff9f0a?style=for-the-badge&logo=github&logoColor=white" alt="Versi">
   <img src="https://img.shields.io/badge/Root-KSU%20%7C%20APatch%20%7C%20Magisk-e65c00?style=for-the-badge&logo=linux&logoColor=white" alt="Root">
   <br>
   <br>
@@ -20,13 +20,13 @@
 
 ## Deskripsi Umum
 
-DexForge adalah modul root lintas platform Android yang dirancang untuk mengoptimalkan kompilasi DEX/ART sistem secara dinamis. Dengan menganalisis tier RAM perangkat, SDK level, status baterai, dan sisa penyimpanan saat eksekusi, DexForge secara otomatis menetapkan filter kompilasi yang paling sesuai—mulai dari `speed` untuk perangkat flagship berspesifikasi tinggi, hingga `speed-profile` atau `quicken` untuk perangkat keras entry dan mid-tier. Analisis berbasis perangkat keras ini memastikan waktu muat aplikasi dipersingkat dan kelancaran sistem dimaksimalkan tanpa membebani perangkat berspesifikasi lebih rendah.
+DexForge adalah modul root lintas platform Android yang dirancang untuk mengoptimalkan kompilasi DEX/ART sistem secara dinamis. Dengan menganalisis tier RAM perangkat, SDK level, status baterai, dan sisa penyimpanan saat eksekusi, DexForge secara otomatis menetapkan filter kompilasi yang paling sesuai—mulai dari `speed` untuk perangkat flagship berspesifikasi tinggi, hingga `speed-profile` atau `quicken`/`verify` untuk perangkat keras entry dan mid-tier berdasarkan gradien prioritas berbasis penggunaan yang dinamis. Analisis berbasis perangkat keras ini memastikan waktu muat aplikasi dipersingkat dan kelancaran sistem dimaksimalkan tanpa membebani perangkat berspesifikasi lebih rendah.
 
 ---
 
 ## Mengapa Memilih DexForge?
 
-- **Performa Terarah**: Memilih filter kompilasi terbaik secara otomatis (`speed`, `speed-profile`, atau `quicken`) sesuai dengan kapasitas RAM perangkat Anda.
+- **Performa Terarah**: Memilih filter kompilasi terbaik secara otomatis (`speed`, `speed-profile`, atau `verify`/`quicken`) sesuai dengan kapasitas RAM perangkat dan statistik penggunaan aplikasi Anda.
 - **Proteksi Failsafe**: Secara aktif memverifikasi kapasitas baterai dan sisa penyimpanan sebelum berjalan untuk mencegah kerusakan data sistem.
 - **Reset Cache Interaktif**: Menyediakan opsi pembersihan cache kompilasi sebelum proses optimasi dimulai untuk penyegaran penuh.
 
@@ -55,17 +55,17 @@ DexForge adalah modul root lintas platform Android yang dirancang untuk mengopti
 
 ## Detail Teknis
 
-### Klasifikasi Berbasis Perangkat Keras
-* **Tier Flagship (> 6144 MB RAM)**: Menerapkan filter `speed` (kompilasi penuh kode mesin AOT) untuk efisiensi CPU maksimal.
-* **Tier Mid (3072 MB - 6144 MB RAM)**: Menerapkan filter `speed-profile` (Profile-Guided Optimization). Ini berfungsi sebagai pelindung, mengabaikan permintaan kompilasi `speed` penuh untuk melindungi sistem dari kehabisan ruang penyimpanan dan kegagalan memori virtual (OOM). Jika data profil tidak mencukupi, sistem akan beralih ke `verify` (API >= 31) atau `quicken` (API < 31).
-* **Tier Entry (<= 3072 MB RAM)**: Menerapkan filter `verify` (API >= 31) atau `quicken` (API < 31) untuk menjaga penggunaan ruang penyimpanan tetap minimal dan mencegah tekanan memori pada RAM fisik.
+### Klasifikasi Berbasis Perangkat Keras & Prioritas Berbasis Penggunaan
+* **Tier Flagship (> 6144 MB RAM)**: Mengompilasi semua paket sistem dan pengguna menggunakan loop pelacakan individual (mencegah CPU terkunci) dengan target filter `speed`. Selama eksekusi penuh (`CLEAR_CACHE=true`), sistem menerapkan gradien berbasis penggunaan di mana aplikasi yang tidak terpakai diturunkan ke `speed-profile`. Selama eksekusi bertahap (incremental), sistem melewati pemindaian usagestats untuk memaksimalkan kecepatan.
+* **Tier Mid (3072 MB - 6144 MB RAM)**: Menerapkan filter berbasis penggunaan secara dinamis di mana aplikasi yang sering digunakan mendapat `speed`, aplikasi normal mendapat `speed-profile`, dan aplikasi yang tidak pernah dibuka diturunkan ke `verify` (atau `quicken` di Android versi lama) untuk menghindari kegagalan OOM dan kepenuhan penyimpanan.
+* **Tier Entry (<= 3072 MB RAM)**: Membatasi kompilasi ke `speed-profile` hanya untuk aplikasi teratas, dan `verify`/`quicken` untuk aplikasi lainnya guna menghemat daya CPU dan penyimpanan.
 
 ### Protokol Validasi Keamanan Sistem
-* **Proteksi Penyimpanan**: Memeriksa sisa penyimpanan kontigu pada partisi `/data` menggunakan pemisahan kolom whitespace POSIX atas output `df -k`. Jika sisa penyimpanan di bawah **512MB**, proses kompilasi akan dihentikan untuk mencegah kerusakan sistem file dan bootloop.
-* **Proteksi Baterai**: Mengambil metrik baterai dari sysfs `/sys/class/power_supply/battery/` dengan fallback otomatis ke layanan binder `dumpsys battery`. Eksekusi akan diblokir jika perangkat tidak sedang diisi daya dan kapasitas baterai di bawah **15%**.
+* **Proteksi Penyimpanan**: Memeriksa sisa penyimpanan kontigu pada partisi `/data`. Jika sisa penyimpanan di bawah **512MB**, proses kompilasi akan dihentikan untuk mencegah kerusakan sistem file dan bootloop.
+* **Proteksi Baterai**: Mengambil metrik baterai dari sysfs dengan fallback otomatis ke layanan binder `dumpsys battery`. Eksekusi akan diblokir jika perangkat tidak sedang diisi daya dan kapasitas baterai di bawah **15%**.
 
 ### Pengaturan Core Late-Boot (`service.sh`)
-* **Core Affinity Pinning**: Menjalankan pengawas pemungutan suara awal booting yang mengait ke `sys.boot_completed`. Setelah booting selesai, ia mengonfigurasi properti sistem (`dalvik.vm.dex2oat-cpu-set=0,1,2,3` dan `dalvik.vm.dex2oat-threads=4`) untuk membatasi operasi compiler latar belakang hanya pada core efisiensi logis. Langkah ini mencegah throttling termal CPU dan menjaga responsivitas sistem.
+* **Core Affinity Dinamis**: Watchdog secara dinamis menyelesaikan rentang setengah core terbawah saat booting selesai (mendukung topologi CPU prime-first dengan aman) dan membatasi thread compiler latar belakang (`dalvik.vm.dex2oat-cpu-set` dan `dalvik.vm.dex2oat-threads`) pada core efisiensi LITTLE untuk mencegah throttling termal CPU dan lag pada antarmuka pengguna.
 
 ---
 
@@ -103,30 +103,59 @@ DexForge/
 
 ## Cara Kerja
 
+### Skenario A: Late-Boot Core Regulator (`service.sh`)
+
 ```mermaid
 flowchart TD
-    Start([Mulai: Flash ZIP Modul]) --> Install[1. Ekstrak action.sh & Aset Modul]
-    Install --> Setup[2. Registrasi Aksi di Manajer Root]
-    Setup --> Trigger[3. Jalankan action.sh via Tombol Aksi]
-    Trigger --> EnvCheck[4. Profil RAM, SDK, Penyimpanan & Baterai]
+    StartA([Mulai: Pemicu Late-Boot]) --> PollBoot[Pindai sys.boot_completed]
+    PollBoot --> BootCheck{Boot Selesai atau Batas Waktu?}
+    
+    BootCheck -- Tidak --> Sleep[Tidur 2 detik & Coba Lagi]
+    Sleep --> PollBoot
+    
+    BootCheck -- Ya --> SetFilters[Atur filter bg-dexopt & shared]
+    SetFilters --> ResolveCPU[Dapatkan Mask CPU secara dinamis]
+    ResolveCPU --> SetAffinity[Atur dex2oat-cpu-set & thread]
+    
+    SetAffinity --> FinishA([Selesai: Pengaturan Diterapkan])
+
+    %% Kustomisasi Tampilan dan Warna (Tema Gelap Ultra-Redup)
+    classDef startEnd fill:#1b2c24,stroke:#34d399,stroke-width:1.5px,color:#e6f4ea;
+    classDef fail fill:#2c1b1b,stroke:#f87171,stroke-width:1.5px,color:#fce8e6;
+    classDef decision fill:#2d2216,stroke:#fbbf24,stroke-width:1.5px,color:#fef3c7;
+    classDef process fill:#1e293b,stroke:#475569,stroke-width:1px,color:#f1f5f9;
+
+    class StartA,FinishA startEnd;
+    class BootCheck decision;
+    class PollBoot,Sleep,SetFilters,ResolveCPU,SetAffinity process;
+```
+
+### Skenario B: Manual Optimization Engine (`action.sh`)
+
+```mermaid
+flowchart TD
+    Start([Mulai: Jalankan Aksi]) --> EnvCheck[1. Profil RAM, SDK, Penyimpanan & Baterai]
     EnvCheck --> Verification{Validasi Persyaratan?}
     
-    Verification -- Gagal --> Abort[Abort: Penghentian Sistem yang Aman]
+    Verification -- Gagal --> Abort[Batal: Catat Log & Keluar dengan Aman]
     Verification -- Lolos --> VolumePrompt{Volume ATAS ditekan dalam 10 detik?}
     
-    VolumePrompt -- Ya --> CacheReset[Aktifkan Reset Cache Kompilasi]
-    VolumePrompt -- Tidak / Timeout --> CompileOnly[Matikan Reset Cache]
+    VolumePrompt -- Ya --> CacheReset[Atur CLEAR_CACHE = true]
+    VolumePrompt -- Tidak / Timeout --> CompileOnly[Atur CLEAR_CACHE = false]
     
-    CacheReset --> DeviceTier{Klasifikasi Tier RAM Perangkat?}
+    CacheReset --> DeviceTier{Klasifikasi Tier RAM?}
     CompileOnly --> DeviceTier
     
-    DeviceTier -- Flagship --> Bulk[Jalankan kompilasi massal filter speed -a]
-    DeviceTier -- Mid / Entry --> Scan[Pindai Aplikasi Pihak Ketiga -3]
+    DeviceTier -- Flagship --> FlagshipBranch{CLEAR_CACHE = true?}
+    DeviceTier -- Mid / Entry --> Usagestats[Pindai dumpsys usagestats]
     
-    Scan --> ProcessApps[Kompilasi Aplikasi Satu-per-Satu + Progres]
-    Bulk --> Output[Buat berkas dexforge.log & Ringkasan Hasil]
-    ProcessApps --> Output
+    FlagshipBranch -- Ya --> Usagestats
+    FlagshipBranch -- No --> FlatFilter[Nonaktifkan Mode Usage-Aware]
     
+    Usagestats --> PackageLoop[Pindai Paket & Kompilasi Satu-per-Satu + Gradien]
+    FlatFilter --> PackageLoop
+    
+    PackageLoop --> Output[Buat berkas dexforge.log & Ringkasan]
     Output --> Finish([Selesai: Mulai Ulang Perangkat])
 
     %% Kustomisasi Tampilan dan Warna (Tema Gelap Ultra-Redup)
@@ -137,8 +166,8 @@ flowchart TD
     
     class Start,Finish startEnd;
     class Abort fail;
-    class Verification,VolumePrompt,DeviceTier decision;
-    class Install,Setup,Trigger,EnvCheck,CacheReset,CompileOnly,Bulk,Scan,ProcessApps,Output process;
+    class Verification,VolumePrompt,DeviceTier,FlagshipBranch decision;
+    class EnvCheck,CacheReset,CompileOnly,Usagestats,FlatFilter,PackageLoop,Output process;
 ```
 
 ---
