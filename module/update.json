@@ -1,6 +1,6 @@
 {
   "version": "v2.1.1",
   "versionCode": 211,
-  "zipUrl": "https://raw.githubusercontent.com/dyokism/DexForge/main/DexForge.zip",
+  "zipUrl": "https://github.com/dyokism/DexForge/releases/latest/download/DexForge.zip",
   "changelog": "https://raw.githubusercontent.com/dyokism/DexForge/main/module/changelog.md"
 }
