@@ -1,8 +1,6 @@
 #!/system/bin/sh
-# dexforge installer script (posix compliant busybox ash)
 
-# prevent exit calls as it is sourced
-# verify installation environment
+# Requires Nougat ART daemon for speed-profile compilation. Use abort since exit traps the root manager.
 if [ -z "$API" ] || [ "$API" -lt 24 ]; then
   abort "[!] Unsupported Android version (API $API). Requires API 24+ (Nougat+)."
 fi
@@ -10,14 +8,7 @@ fi
 ui_print "- Installing DexForge..."
 ui_print "- Target Path: $MODPATH"
 
-# rebuild custom partition layout symlinks for ksu/apatch compatibility
-for partition in product vendor system_ext odm; do
-  if [ -d "$MODPATH/system/$partition" ] && [ -L "/system/$partition" ]; then
-    ln -sf "./system/$partition" "$MODPATH/$partition"
-  fi
-done
-
-# set permissions for module scripts
+# Prevent execution denial when running from CLI or service daemon.
 set_perm "$MODPATH/action.sh" 0 0 0755
 set_perm "$MODPATH/uninstall.sh" 0 0 0755
 set_perm "$MODPATH/service.sh" 0 0 0755

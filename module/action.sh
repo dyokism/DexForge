@@ -1,8 +1,6 @@
 #!/system/bin/sh
-# dexforge optimization action script (posix compliant busybox ash)
-# prioritizes execution stability, strict posix compliance, and advanced art/dex logic.
 
-# redirect stderr to stdout for shell terminal visibility under managers
+# Bind stderr to stdout to prevent root managers from swallowing errors.
 exec 2>&1
 
 MODDIR="${0%/*}"
@@ -14,10 +12,9 @@ USAGE_TOP_FILE="/data/local/tmp/dexforge_usage_top.tmp"
 USAGE_NEVER_FILE="/data/local/tmp/dexforge_usage_never.tmp"
 USAGE_UNIQUE_FILE="/data/local/tmp/dexforge_usage_unique.tmp"
 
-# create log directory if missing
 mkdir -p "${LOG_FILE%/*}" 2>/dev/null || true
 
-# prevent screen sleep during optimization
+# Keep screen awake to stop Doze mode from suspending compilation.
 ORIG_TIMEOUT=$(settings get system screen_off_timeout 2>/dev/null || true)
 ORIG_TIMEOUT="${ORIG_TIMEOUT%%$CR*}"
 if [ -n "${ORIG_TIMEOUT:-}" ] && [ "${ORIG_TIMEOUT:-}" != "null" ]; then
@@ -25,16 +22,15 @@ if [ -n "${ORIG_TIMEOUT:-}" ] && [ "${ORIG_TIMEOUT:-}" != "null" ]; then
 fi
 svc power stayon true 2>/dev/null || true
 
-# execution cleanup handler
+# Cleanup handler for graceful exit on interrupts.
 cleanup() {
     local exit_code=$?
-    # restore original screen timeout settings
+    
     if [ -n "${ORIG_TIMEOUT:-}" ] && [ "${ORIG_TIMEOUT:-}" != "null" ]; then
         settings put system screen_off_timeout "${ORIG_TIMEOUT:-}" 2>/dev/null || true
     fi
     svc power stayon false 2>/dev/null || true
     
-    # remove usage stats and event temp files
     rm -f /data/local/tmp/dexforge_usage_*.tmp
     rm -f /data/local/tmp/dexforge_evt.*
     
@@ -45,13 +41,12 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# logging helper function
+# Log to both stdout and file.
 log_echo() {
     echo "$@"
     echo "$@" >> "$LOG_FILE"
 }
 
-# initialize log file
 {
     echo ""
     echo "=========================================="
@@ -62,14 +57,13 @@ log_echo() {
 log_echo "Starting DexForge optimization engine..."
 START_TIME=$(date +%s)
 
-# cli argument parsing
 DRY_RUN=0
 if [ "${1:-}" = "--dry-run" ]; then
     DRY_RUN=1
     log_echo "Running in Dry-Run simulation mode."
 fi
 
-# command execution wrapper (direct invocation without eval to prevent injection)
+# Command runner with dry-run support.
 execute_cmd() {
     if [ "$DRY_RUN" -eq 1 ]; then
         log_echo "[DRY-RUN] Would execute: $@"
@@ -86,8 +80,8 @@ execute_cmd() {
     fi
 }
 
+# Parse dumpsys usagestats output via parameter expansion to avoid subshell overhead.
 parse_usagestats() {
-    # parse usagestats output line by line
     local cur_pkg=""
     local line
     local trimmed
@@ -168,8 +162,8 @@ parse_usagestats() {
     done
 }
 
+# Lookup usage count via sequential matching to bypass busybox grep limits.
 get_usage_count() {
-    # lookup package launch count safely without subshells or grep regex metacharacter issues
     local target="$1"
     local file="$2"
     local line cnt pkg
@@ -188,8 +182,8 @@ get_usage_count() {
     return 1
 }
 
+# Determine priority bucket for target package.
 get_usage_bucket() {
-    # check package bucket in temp files
     local pkg="$1"
     if grep -qxF "$pkg" "$USAGE_TOP_FILE" 2>/dev/null; then
         echo "top"
@@ -200,9 +194,8 @@ get_usage_bucket() {
     fi
 }
 
+# Assign compile filters dynamically based on RAM tier and usage bucket.
 resolve_filter() {
-    # resolve compilation filter based on tier and bucket
-    # dependency: reads global sdk_version variable
     local target_tier="$1"
     local bucket="$2"
     local verify_quicken="verify"
@@ -234,8 +227,8 @@ resolve_filter() {
     esac
 }
 
+# Collect and sort telemetry into usage queues.
 collect_usage_data() {
-    # run dumpsys usagestats and parse it
     local dump
     dump=$(dumpsys usagestats 2>/dev/null)
     if [ -z "$dump" ]; then
@@ -274,7 +267,6 @@ collect_usage_data() {
     
     grep -v "^0 " "$unique_file" | head -n 10 | cut -d' ' -f2 > "$top_file"
     
-    # dependency: reads global raw_pkgs variable
     while IFS= read -r line; do
         [ -z "$line" ] && continue
         local pkg="${line#package:}"
@@ -295,7 +287,7 @@ EOF
     return 0
 }
 
-# 1. device hardware profiling (pure posix without grep/awk/tr subshells)
+# Profile device RAM tier and limits.
 log_echo "Profiling system hardware limits..."
 
 mem_total_kb=0
@@ -315,7 +307,7 @@ if [ "$mem_total_kb" -le 0 ]; then
     exit 1
 fi
 
-# retrieve sdk version safely and strip non-digit characters
+# Read and sanitize Android SDK version.
 sdk_version=$(getprop ro.build.version.sdk 2>/dev/null || echo "0")
 sdk_version=${sdk_version%%[!0-9]*}
 
@@ -329,44 +321,52 @@ if [ "$sdk_version" -lt 24 ]; then
     exit 1
 fi
 
-# 2. system safety protocols and failsafes
 log_echo "Enforcing pre-flight safety validations..."
 
-# a. storage space verification on /data partition (direct df parsing without gnu stat)
-df_out=$(df -k /data 2>/dev/null || df /data 2>/dev/null)
-last_line=""
-while read -r line; do
-    [ -n "$line" ] && last_line="$line"
-done <<EOF
+# Enforce 512MB storage minimum via stat/df to prevent bootloops from ENOSPC during compilation.
+MIN_FREE_MB=512
+free_storage_mb=0
+
+if stat_out=$(stat -f -c '%a %S' /data 2>/dev/null); then
+    set -- $stat_out
+    avail_blocks=$1; block_size=$2
+    [ -n "$avail_blocks" ] && [ "$avail_blocks" -gt 0 ] && \
+    [ -n "$block_size" ] && [ "$block_size" -gt 0 ] && \
+    free_storage_mb=$(( avail_blocks * (block_size / 1024) / 1024 ))
+fi
+
+if [ "$free_storage_mb" -eq 0 ]; then
+    df_out=$(df -k /data 2>/dev/null || df /data 2>/dev/null)
+    last_line=""
+    while read -r line; do
+        [ -n "$line" ] && last_line="$line"
+    done <<EOF
 $df_out
 EOF
-
-# parse columns using positional parameter tokenization
-set -- $last_line
-free_kb=0
-if [ $# -ge 4 ]; then
-    free_kb=$4
-elif [ $# -ge 3 ]; then
-    free_kb=$3
+    set -- $last_line
+    free_kb=0
+    if [ $# -ge 4 ]; then
+        free_kb=$4
+    elif [ $# -ge 3 ]; then
+        free_kb=$3
+    fi
+    free_kb=${free_kb%%[!0-9]*}
+    [ -z "$free_kb" ] && free_kb=0
+    free_storage_mb=$((free_kb / 1024))
 fi
-free_kb=${free_kb%%[!0-9]*}
-[ -z "$free_kb" ] && free_kb=0
 
-free_storage_mb=$((free_kb / 1024))
-
-if [ "$free_storage_mb" -lt 512 ]; then
+if [ "$free_storage_mb" -lt "$MIN_FREE_MB" ]; then
     log_echo "ERROR: Insufficient storage. Only ${free_storage_mb}MB available on /data."
-    log_echo "A minimum of 512MB contiguous space is required to compile AOT artifacts safely."
+    log_echo "A minimum of ${MIN_FREE_MB}MB contiguous space is required to compile AOT artifacts safely."
     exit 1
 else
     log_echo " -> Storage Failsafe: Passed (${free_storage_mb}MB available)."
 fi
 
-# b. battery capacity and status verification
+# Ensure sufficient battery to prevent corruption from unexpected shutdown.
 batt_level=""
 is_charging=0
 
-# extract battery parameters using posix read (avoids cat subshell)
 if [ -f /sys/class/power_supply/battery/capacity ]; then
     read -r batt_level < /sys/class/power_supply/battery/capacity 2>/dev/null || true
     batt_level=${batt_level%%[!0-9]*}
@@ -408,7 +408,6 @@ EOF
     fi
 fi
 
-# final backup assumptions
 [ -z "$batt_level" ] && batt_level=100
 
 if [ "$is_charging" -ne 1 ] && [ "$batt_level" -lt 15 ]; then
@@ -419,7 +418,6 @@ else
     log_echo " -> Battery Failsafe: Passed (Capacity: ${batt_level}%, Charging: ${is_charging})."
 fi
 
-# 3. interactive volume key selection for cache reset
 CLEAR_CACHE="${CLEAR_CACHE:-false}"
 
 choose_cache_option() {
@@ -448,7 +446,6 @@ choose_cache_option() {
     local event_file
     event_file=$(mktemp /data/local/tmp/dexforge_evt.XXXXXX)
 
-    # spawn getevent process in background
     $getevent_cmd -l > "$event_file" 2>&1 &
     local getevent_pid=$!
     
@@ -474,7 +471,6 @@ choose_cache_option() {
     wait "$getevent_pid" 2>/dev/null
     rm -f "$event_file"
 
-    # fallback to keycheck binary if getevent was unresolved
     if [ -z "$selection" ]; then
         local keycheck_bin=""
         if [ -f "$MODDIR/keycheck" ]; then
@@ -486,7 +482,7 @@ choose_cache_option() {
         if [ -n "$keycheck_bin" ] && [ -x "$keycheck_bin" ]; then
             log_echo "Swapping to keycheck fallback..."
             local key_code=0
-            # capture real user input with 5 second timeout (timeout 0 removed)
+            
             timeout 5 "$keycheck_bin" || key_code=$?
             if [ "$key_code" -eq 42 ]; then
                 selection="true"
@@ -507,8 +503,7 @@ choose_cache_option() {
 
 [ "$DRY_RUN" -eq 0 ] && choose_cache_option
 
-# 4. device classification and compilation filter selection
-# MemTotal in MB
+# Assign device tier to prevent OOM killer interventions.
 mem_total_mb=$((mem_total_kb / 1024))
 tier="entry"
 filter="verify"
@@ -544,7 +539,6 @@ else
     fi
 fi
 
-# allow testing override for tier classification
 if [ -n "${TEST_TIER:-}" ]; then
     tier="$TEST_TIER"
     if [ "$tier" = "flagship" ]; then
@@ -563,13 +557,10 @@ fi
 log_echo "Device Classification: $tier Tier (RAM: ${mem_total_mb}MB)"
 log_echo "Selected Compilation Filter: $filter"
 
-# retrieve package list and run usagestats parsing once
 USE_USAGE_AWARE="false"
 if [ "$tier" = "flagship" ] && [ "$CLEAR_CACHE" = "false" ]; then
-    # skip usagestats parsing for flagship without clear cache
     :
 else
-    # query package list for never-used list generation
     list_cmd="pm list packages -3"
     if [ "$tier" = "flagship" ]; then
         list_cmd="pm list packages"
@@ -586,12 +577,10 @@ if ! command -v cmd >/dev/null 2>&1; then
     exit 1
 fi
 
-# 5. compilation process implementation
 success_count=0
 fail_count=0
 total_pkgs=0
 
-# read package list and set target text
 if [ "$tier" = "flagship" ]; then
     log_echo "Applying global system and user application optimizations..."
     [ -z "${raw_pkgs:-}" ] && raw_pkgs=$(pm list packages 2>/dev/null)
@@ -600,7 +589,6 @@ else
     [ -z "${raw_pkgs:-}" ] && raw_pkgs=$(pm list packages -3 2>/dev/null)
 fi
 
-# calculate packages count using pure redirection loop
 while IFS= read -r line; do
     [ -n "$line" ] && total_pkgs=$((total_pkgs + 1))
 done <<EOF
@@ -617,7 +605,6 @@ else
         pkg="${pkg%%$CR*}"
         [ -z "$pkg" ] && continue
 
-        # resolve filter per-package
         pkg_filter="$filter"
         pkg_bucket="normal"
         if [ "$USE_USAGE_AWARE" = "true" ]; then
@@ -650,12 +637,15 @@ else
         fi
 
         if [ "$CLEAR_CACHE" = "true" ]; then
-            execute_cmd cmd package compile --reset "$pkg"
+            if [ "$sdk_version" -ge 34 ]; then
+                execute_cmd pm art clear-app-profiles "$pkg"
+            else
+                execute_cmd cmd package compile --reset "$pkg"
+            fi
         fi
 
         pkg_start=$(date +%s)
         
-        # execute compilation and capture exit status
         compile_status=0
         execute_cmd cmd package compile -m "$pkg_filter" "$pkg" || compile_status=$?
         
@@ -679,7 +669,6 @@ $raw_pkgs
 EOF
 fi
 
-# 6. optimization summary generation
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))
 

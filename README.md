@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-d35400?style=for-the-badge" alt="License">
   <img src="https://img.shields.io/badge/Android-7.0%2B-ff7300?style=for-the-badge&logo=android&logoColor=white" alt="Android">
-  <img src="https://img.shields.io/badge/Version-2.1-ff9f0a?style=for-the-badge&logo=github&logoColor=white" alt="Version">
+  <img src="https://img.shields.io/badge/Version-2.1.1-ff9f0a?style=for-the-badge&logo=github&logoColor=white" alt="Version">
   <img src="https://img.shields.io/badge/Root-KSU%20%7C%20APatch%20%7C%20Magisk-e65c00?style=for-the-badge&logo=linux&logoColor=white" alt="Root">
   <br>
   <br>
@@ -20,7 +20,11 @@
 
 ## Overview
 
-DexForge is a cross-platform Android root module designed to dynamically optimize the system's DEX/ART compilations. By profiling the device's RAM tier, SDK level, battery state, and available storage during execution, DexForge automatically assigns the most appropriate compilation filter—ranging from `speed` for flagship devices to `speed-profile` or `quicken`/`verify` for entry and mid-tier hardware based on a dynamic usage-aware priority gradient. This hardware-aware profiling ensures that app launch times are minimized and system fluidity is maximized without overloading lower-spec devices.
+DexForge is an Android root module that optimizes your phone's apps to make them open faster and run smoother. 
+
+Instead of using the same settings for every phone, DexForge checks your phone's hardware--like your RAM, Android version, battery level, and free storage space. Based on this check, it automatically chooses the best optimization method for your specific device. 
+
+For high-end phones, it focuses on maximum speed. For older or budget phones, it carefully balances speed and storage space so your phone doesn't get overloaded or slow down.
 
 ---
 
@@ -34,18 +38,22 @@ DexForge is a cross-platform Android root module designed to dynamically optimiz
 
 ## How to Use
 
-### 1. Installation & Setup
+### 1. Installation
 * Download the latest `DexForge.zip` from [Releases](https://github.com/dyokism/DexForge/releases).
-* Install the ZIP file via your root manager's **Modules** tab (Magisk, KernelSU, or APatch).
-* **Reboot** your device to fully initialize the background services and core thread watchdog.
+* Install the ZIP file using your root manager (Magisk, KernelSU, or APatch).
+* **Reboot** your phone so the module can start working in the background.
 
-### 2. Execution (Action Button)
-* Launch the compilation engine by pressing the **Action** button in your root manager's menu.
-* **Interactive Cache Prompt**: During start-up, press **Volume UP** to perform a clean reforge (purges existing compiler caches first) or **Volume DOWN** (or wait 10 seconds) to compile existing states incrementally.
-* Optimization results and execution events are logged at: `/data/adb/modules/DexForge/dexforge.log`
+### 2. Running the Optimizer
+* Open your root manager and press the **Action** button on the DexForge module.
 
-### 3. Dry-Run Audit Mode (CLI)
-* To simulate execution and verify compiler selection without performing physical writes, run the CLI utility in a root shell:
+> [!WARNING]
+> If you want to clear the cache, compilation on some (and eventually all) devices will take significantly longer. Do it with your own sense.
+
+* **Cache Menu**: When it starts, it will ask you a question. Press **Volume UP** if you want to clear your old caches first (a clean start). Press **Volume DOWN** (or wait 10 seconds) if you want to keep your old caches and just update them.
+* You can read the results later at: `/data/adb/modules/DexForge/dexforge.log`
+
+### 3. Test Mode
+* If you want to see what DexForge will do without actually changing anything on your phone, you can run a test. Open a root terminal (like Termux) and type:
   ```sh
   su
   /data/adb/modules/DexForge/action.sh --dry-run
@@ -55,17 +63,19 @@ DexForge is a cross-platform Android root module designed to dynamically optimiz
 
 ## Technical Details
 
-### Hardware-Based Classification & Usage-Aware Priority
-* **Flagship Tier (> 6144 MB RAM)**: Compiles all system and user packages using individual tracking loops (preventing CPU locks) targeting the `speed` filter. During full runs (`CLEAR_CACHE=true`), it applies a usage-aware gradient where unused packages are set to `speed-profile`. During incremental runs, it skips usagestats parsing to maximize execution speed.
-* **Mid Tier (3072 MB - 6144 MB RAM)**: Assigns a usage-aware filter gradient where top used apps get `speed`, normal apps get `speed-profile`, and unused apps get `verify` (or `quicken` on older Android versions) to prevent OOM failures and storage exhaustion.
-* **Entry Tier (<= 3072 MB RAM)**: Limits compilation to `speed-profile` for top apps and `verify`/`quicken` for the rest to conserve CPU and storage.
+### Hardware Optimization & App Usage Priority
+* **Flagship Phones (More than 6GB RAM)**: Optimizes all apps for maximum `speed`. It processes apps one by one to avoid freezing the phone. If you choose to clear the cache, it checks your app usage and sets rarely used apps to `speed-profile` to save time. If you don't clear the cache, it skips checking app usage to make the process much faster.
+* **Mid-Range Phones (3GB to 6GB RAM)**: Checks your app usage to decide the best setup. Your most used apps get the `speed` setting, normal apps get `speed-profile`, and unused apps get `verify` (or `quicken` on older Android versions). This prevents the phone from running out of memory or storage space.
+* **Entry-Level Phones (3GB RAM or less)**: Limits optimization to `speed-profile` for your top apps, and `verify` or `quicken` for everything else. This saves your phone's CPU power and storage space.
 
-### System Safety Validation Protocols
-* **Storage Failsafe**: Verifies contiguous free space on the `/data` partition. If available storage is under **512MB**, compilation terminates to prevent bootloops.
-* **Battery Failsafe**: Queries battery status via PMIC sysfs metrics with fallback to `dumpsys battery`. Execution is blocked if the device is not charging and capacity is under **15%**.
+>*If you have 8GB of RAM, it doesn't mean your phone is actually a "flagship". This is just for better classification :)*
 
-### Late-Boot Core Regulation (`service.sh`)
-* **Dynamic Core Affinity**: Watchdog dynamically resolves the lower half of logical cores on boot completion (handling prime-first CPU topologies safely) and restricts background compiler threads (`dalvik.vm.dex2oat-cpu-set` and `dalvik.vm.dex2oat-threads`) to LITTLE efficiency cores to prevent CPU thermal throttling and user interface lag.
+### System Safety Checks
+* **Storage Check**: Checks how much free space you have on your phone. If you have less than **512MB** of free space, it stops running. This protects your phone from getting stuck in a bootloop.
+* **Battery Check**: Checks your battery level. If your phone is not charging and the battery is under **15%**, it stops running to prevent sudden shutdowns.
+
+### Background Tuning (`service.sh`)
+* **CPU Core Control**: After your phone finishes booting, a background script checks your processor. It forces the system's background compiler to only use the small, energy-efficient CPU cores. This prevents your phone from overheating or lagging while you use it.
 
 ---
 
@@ -101,76 +111,6 @@ DexForge/
 
 ---
 
-## How It Works
-
-### Scenario A: Late-Boot Core Regulator (`service.sh`)
-
-```mermaid
-flowchart TD
-    StartA([Start: Late-Boot Trigger]) --> PollBoot[Poll sys.boot_completed]
-    PollBoot --> BootCheck{Boot Completed or Timeout?}
-    
-    BootCheck -- No --> Sleep[Sleep 2s & Retry]
-    Sleep --> PollBoot
-    
-    BootCheck -- Yes --> SetFilters[Set bg-dexopt & shared filters]
-    SetFilters --> ResolveCPU[Resolve CPU Mask dynamically]
-    ResolveCPU --> SetAffinity[Set dex2oat-cpu-set & threads]
-    
-    SetAffinity --> FinishA([Finish: Tuning Applied])
-
-    %% Custom Styles and Colors (Ultra-Muted Slate Theme)
-    classDef startEnd fill:#1b2c24,stroke:#34d399,stroke-width:1.5px,color:#e6f4ea;
-    classDef fail fill:#2c1b1b,stroke:#f87171,stroke-width:1.5px,color:#fce8e6;
-    classDef decision fill:#2d2216,stroke:#fbbf24,stroke-width:1.5px,color:#fef3c7;
-    classDef process fill:#1e293b,stroke:#475569,stroke-width:1px,color:#f1f5f9;
-
-    class StartA,FinishA startEnd;
-    class BootCheck decision;
-    class PollBoot,Sleep,SetFilters,ResolveCPU,SetAffinity process;
-```
-
-### Scenario B: Manual Optimization Engine (`action.sh`)
-
-```mermaid
-flowchart TD
-    Start([Start: Trigger Action]) --> EnvCheck[1. Profile RAM, SDK, Storage & Battery]
-    EnvCheck --> Verification{Validate Constraints?}
-    
-    Verification -- Fail --> Abort[Abort: Log & Exit safely]
-    Verification -- Pass --> VolumePrompt{Volume UP pressed within 10s?}
-    
-    VolumePrompt -- Yes --> CacheReset[Set CLEAR_CACHE = true]
-    VolumePrompt -- No / Timeout --> CompileOnly[Set CLEAR_CACHE = false]
-    
-    CacheReset --> DeviceTier{Classify RAM Tier?}
-    CompileOnly --> DeviceTier
-    
-    DeviceTier -- Flagship --> FlagshipBranch{CLEAR_CACHE = true?}
-    DeviceTier -- Mid / Entry --> Usagestats[Parse dumpsys usagestats]
-    
-    FlagshipBranch -- Yes --> Usagestats
-    FlagshipBranch -- No --> FlatFilter[Disable Usage-Aware Mode]
-    
-    Usagestats --> PackageLoop[Scan Packages & Compile One-by-One with Gradient]
-    FlatFilter --> PackageLoop
-    
-    PackageLoop --> Output[Generate dexforge.log & Summary]
-    Output --> Finish([Finish: Reboot Recommended])
-
-    %% Custom Styles and Colors (Ultra-Muted Slate Theme)
-    classDef startEnd fill:#1b2c24,stroke:#34d399,stroke-width:1.5px,color:#e6f4ea;
-    classDef fail fill:#2c1b1b,stroke:#f87171,stroke-width:1.5px,color:#fce8e6;
-    classDef decision fill:#2d2216,stroke:#fbbf24,stroke-width:1.5px,color:#fef3c7;
-    classDef process fill:#1e293b,stroke:#475569,stroke-width:1px,color:#f1f5f9;
-    
-    class Start,Finish startEnd;
-    class Abort fail;
-    class Verification,VolumePrompt,DeviceTier,FlagshipBranch decision;
-    class EnvCheck,CacheReset,CompileOnly,Usagestats,FlatFilter,PackageLoop,Output process;
-```
-
----
 
 ## Developer, Credits & License
 

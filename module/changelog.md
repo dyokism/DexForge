@@ -1,5 +1,12 @@
 # DexForge Changelog
 
+## v2.1.1
+- Modernized ART cache reset mechanism for Android 14+ (API 34) compatibility.
+- Removed deprecated and redundant partition symlinks from the installer.
+- Refactor the comments.
+
+Thanks for using my module whoever read this :)
+
 ## v2.1
 - Add usage-aware compilation via usagestats (Samsung/OEM compatible).
 - Resolve CPU affinity dynamically in service.sh.
