@@ -41,7 +41,6 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# Log to both stdout and file.
 log_echo() {
     echo "$@"
     echo "$@" >> "$LOG_FILE"
@@ -63,7 +62,6 @@ if [ "${1:-}" = "--dry-run" ]; then
     log_echo "Running in Dry-Run simulation mode."
 fi
 
-# Command runner with dry-run support.
 execute_cmd() {
     if [ "$DRY_RUN" -eq 1 ]; then
         log_echo "[DRY-RUN] Would execute: $@"
@@ -182,7 +180,6 @@ get_usage_count() {
     return 1
 }
 
-# Determine priority bucket for target package.
 get_usage_bucket() {
     local pkg="$1"
     if grep -qxF "$pkg" "$USAGE_TOP_FILE" 2>/dev/null; then
@@ -194,7 +191,6 @@ get_usage_bucket() {
     fi
 }
 
-# Assign compile filters dynamically based on RAM tier and usage bucket.
 resolve_filter() {
     local target_tier="$1"
     local bucket="$2"
@@ -229,6 +225,7 @@ resolve_filter() {
 
 # Collect and sort telemetry into usage queues.
 collect_usage_data() {
+    raw_pkgs="${raw_pkgs:-}"
     local dump
     dump=$(dumpsys usagestats 2>/dev/null)
     if [ -z "$dump" ]; then
@@ -384,6 +381,7 @@ fi
 if [ -z "$batt_level" ] || [ "$is_charging" -eq 0 ]; then
     batt_dump=$(dumpsys battery 2>/dev/null || true)
     if [ -n "$batt_dump" ]; then
+        status_val=""
         while read -r line; do
             case "$line" in
                 *level:*)

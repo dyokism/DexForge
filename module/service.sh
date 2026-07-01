@@ -14,6 +14,7 @@ poll_boot_completed() {
         [ "$boot_comp" = "1" ]
     do
         if [ "$elapsed" -ge "$timeout" ]; then
+            echo "DexForge: boot_completed wait timed out after ${timeout}s, proceeding anyway" > /dev/kmsg 2>/dev/null || true
             return 0
         fi
         sleep 2
@@ -46,6 +47,8 @@ resolve_cpu_mask() {
     resetprop -n pm.dexopt.shared speed 2>/dev/null || setprop pm.dexopt.shared speed
 
     cpu_mask=$(resolve_cpu_mask)
+    thread_count=$(echo "$cpu_mask" | tr ',' '\n' | wc -l)
+    [ "$thread_count" -lt 2 ] && thread_count=2
     resetprop -n dalvik.vm.dex2oat-cpu-set "$cpu_mask" 2>/dev/null || setprop dalvik.vm.dex2oat-cpu-set "$cpu_mask"
-    resetprop -n dalvik.vm.dex2oat-threads 4 2>/dev/null || setprop dalvik.vm.dex2oat-threads 4
+    resetprop -n dalvik.vm.dex2oat-threads "$thread_count" 2>/dev/null || setprop dalvik.vm.dex2oat-threads "$thread_count"
 ) &

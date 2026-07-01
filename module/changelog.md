@@ -1,9 +1,5 @@
-# DexForge Changelog
-
-## v2.1.1
-- Modernized ART cache reset mechanism for Android 14+ (API 34) compatibility.
-- Removed deprecated and redundant partition symlinks from the installer.
-- Refactor the comments.
-
-Please download directly on my GitHub repo. Sorry for the inconvenience
-Anyway, thanks for using my module whoever read this :)
+## 2.2
+- Fixed a bug where battery charging check could be skipped silently.
+- Added a safety guard for package list in usage data collection.
+- Boot timeout now writes a message to kernel log for easier debugging.
+- Compiler thread count is now based on your actual CPU cores instead of always using 4.

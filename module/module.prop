@@ -1,7 +1,7 @@
 id=DexForge
 name=DexForge
-version=v2.1.1
-versionCode=211
+version=v2.2
+versionCode=220
 author=dyokism
 description=Reforge your .dex. Clears ART cache and recompiles with optimal filter based on hardware profiling.
 updateJson=https://raw.githubusercontent.com/dyokism/DexForge/main/module/update.json
