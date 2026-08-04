@@ -18,104 +18,69 @@
   <a href="README.md">English</a> | <a href="README.id.md">Bahasa Indonesia</a>
 </p>
 
-## Deskripsi Umum
+## Deskripsi
 
-DexForge adalah modul root Android yang mengoptimalkan aplikasi di ponsel Anda agar terbuka lebih cepat dan berjalan lebih lancar. 
+DexForge adalah modul root yang mengoptimalkan aplikasi kamu dengan memilih filter kompilasi DEX terbaik sesuai hardware perangkat.
 
-Alih-alih menggunakan pengaturan yang sama untuk setiap ponsel, DexForge memeriksa perangkat keras Anda—seperti RAM, versi Android, tingkat baterai, dan sisa penyimpanan. Berdasarkan pemeriksaan ini, modul akan secara otomatis memilih metode optimasi terbaik untuk perangkat spesifik Anda. 
 
-Untuk ponsel kelas atas, ia berfokus pada kecepatan maksimum. Untuk ponsel lama atau kelas bawah, ia menyeimbangkan kecepatan dan ruang penyimpanan agar ponsel Anda tidak kelebihan beban atau melambat.
+## Kenapa Pakai DexForge?
 
----
+- **Performa yang disesuaikan**: Otomatis memilih filter kompilasi terbaik (`speed`, `speed-profile`, atau `verify`/`quicken`) berdasarkan kapasitas RAM dan statistik penggunaan aplikasi.
+- **Proteksi keamanan**: Cek level baterai dan sisa penyimpanan sebelum berjalan untuk mencegah error.
+- **Menu cache interaktif**: Opsi untuk membersihkan cache kompilasi sebelum optimasi dimulai supaya mulai dari awal yang bersih.
 
-## Mengapa Memilih DexForge?
-
-- **Performa Terarah**: Secara otomatis memilih filter kompilasi terbaik (`speed`, `speed-profile`, atau `verify`/`quicken`) berdasarkan kapasitas RAM dan statistik penggunaan aplikasi Anda.
-- **Proteksi Keamanan**: Aktif memeriksa level baterai dan sisa ruang penyimpanan sebelum berjalan untuk mencegah kerusakan/error.
-- **Menu Cache Interaktif**: Memberikan opsi untuk membersihkan cache kompilasi sebelum optimasi dimulai untuk penyegaran penuh.
-
----
 
 ## Cara Penggunaan
 
 ### 1. Instalasi
-* Unduh berkas `DexForge.zip` terbaru dari halaman [Releases](https://github.com/dyokism/DexForge/releases).
-* Pasang berkas ZIP menggunakan manajer root Anda (Magisk, KernelSU, atau APatch).
-* **Mulai ulang (Reboot)** ponsel Anda agar modul dapat mulai bekerja di latar belakang.
+* Download `DexForge.zip` terbaru dari halaman [Releases](https://github.com/dyokism/DexForge/releases).
+* Flash lewat root manager kamu (Magisk, KernelSU, atau APatch).
+* **Reboot** supaya modul bisa mulai bekerja di latar belakang.
 
 ### 2. Menjalankan Optimizer
-* Buka manajer root Anda dan tekan tombol **Action** pada modul DexForge.
+* Buka root manager dan tekan tombol **Action** pada modul DexForge.
 
 > [!WARNING]
-> Jika Anda memilih untuk membersihkan cache, kompilasi pada beberapa (dan pada akhirnya semua) perangkat akan memakan waktu jauh lebih lama. Lakukan dengan kebijaksanaan Anda sendiri.
+> Kalau kamu pilih bersihkan cache, kompilasi di beberapa (dan akhirnya semua) perangkat bakal jauh lebih lama. Lakukan dengan pertimbangan sendiri.
 
-* **Menu Cache**: Saat dimulai, modul akan menanyakan sebuah pertanyaan. Tekan **Volume ATAS** jika Anda ingin membersihkan cache lama terlebih dahulu (mulai dari awal yang bersih). Tekan **Volume BAWAH** (atau tunggu 10 detik) jika Anda ingin mempertahankan cache lama dan hanya memperbaruinya.
-* Anda dapat membaca hasil log-nya nanti di: `/data/adb/modules/DexForge/dexforge.log`
+* **Menu Cache**: Saat dimulai, modul akan menanyakan pertanyaan. Tekan **Volume ATAS** kalau mau bersihkan cache lama dulu (mulai bersih). Tekan **Volume BAWAH** (atau tunggu 10 detik) kalau mau pertahankan cache lama dan cuma update.
+* Kamu bisa baca hasilnya nanti di: `/data/adb/modules/DexForge/dexforge.log`
 
-### 3. Mode Uji Coba (Test Mode)
-* Jika Anda ingin melihat apa yang akan dilakukan DexForge tanpa benar-benar mengubah apa pun di ponsel Anda, Anda dapat menjalankan uji coba. Buka terminal root (seperti Termux) dan ketik:
+### 3. Mode Uji Coba
+* Mau lihat apa yang DexForge akan lakukan tanpa mengubah apa pun? Buka terminal root (seperti Termux) dan ketik:
   ```sh
   su
   /data/adb/modules/DexForge/action.sh --dry-run
   ```
 
----
 
 ## Detail Teknis
 
-### Optimasi Perangkat Keras & Prioritas Penggunaan Aplikasi
+### Optimasi Hardware & Prioritas Penggunaan Aplikasi
+* **Ponsel flagship (RAM 6GB+)**: Optimasi semua aplikasi untuk `speed` maksimum. Proses satu per satu biar ponsel nggak freeze. Kalau kamu bersihkan cache, modul cek penggunaan aplikasi dan set aplikasi yang jarang dipakai ke `speed-profile` buat hemat waktu. Kalau nggak bersihkan cache, modul skip cek penggunaan biar prosesnya lebih cepat.
+* **Ponsel mid-range (RAM 3GB sampai 6GB)**: Cek penggunaan aplikasi buat tentukan pengaturan terbaik. Aplikasi paling sering dipakai dapat `speed`, aplikasi biasa dapat `speed-profile`, dan aplikasi yang nggak pernah dipakai dapat `verify` (atau `quicken` di Android lama). Ini mencegah ponsel kehabisan memori atau penyimpanan.
+* **Ponsel entry-level (RAM 3GB atau kurang)**: Batasi optimasi ke `speed-profile` untuk aplikasi teratas, dan `verify` atau `quicken` untuk sisanya. Hemat daya CPU dan penyimpanan.
 
-* **Ponsel Flagship (RAM Lebih dari 6GB)**: Mengoptimalkan semua aplikasi untuk `speed` maksimum. Memproses aplikasi satu per satu untuk menghindari freeze pada ponsel. Jika Anda memilih untuk membersihkan cache, modul akan memeriksa penggunaan aplikasi Anda dan mengatur aplikasi yang jarang digunakan ke `speed-profile` untuk menghemat waktu. Jika Anda tidak membersihkan cache, modul melewati pemeriksaan penggunaan aplikasi untuk mempercepat proses.
-* **Ponsel Kelas Menengah (RAM 3GB hingga 6GB)**: Memeriksa penggunaan aplikasi Anda untuk menentukan pengaturan terbaik. Aplikasi yang paling sering digunakan mendapat pengaturan `speed`, aplikasi normal mendapat `speed-profile`, dan aplikasi yang tidak pernah digunakan mendapat `verify` (atau `quicken` di versi Android lama). Ini mencegah ponsel kehabisan memori atau ruang penyimpanan.
-* **Ponsel Entry-Level (RAM 3GB atau kurang)**: Membatasi optimasi ke `speed-profile` untuk aplikasi teratas Anda, dan `verify` atau `quicken` untuk aplikasi lainnya. Ini menghemat daya CPU dan ruang penyimpanan ponsel Anda.
-
->*Jika ponsel Anda memiliki RAM 8GB, bukan berarti ponsel tersebut benar-benar "flagship". Ini hanya untuk memudahkan klasifikasi! :)*
+>*Kalau ponsel kamu punya RAM 8GB, bukan berarti ponsel itu beneran "flagship". Ini cuma buat klasifikasi aja :)*
 
 ### Pemeriksaan Keamanan Sistem
-* **Pemeriksaan Penyimpanan**: Memeriksa berapa banyak sisa ruang kosong di ponsel Anda. Jika sisa ruang kosong kurang dari **512MB**, proses akan dihentikan. Ini melindungi ponsel Anda dari bootloop.
-* **Pemeriksaan Baterai**: Memeriksa level baterai Anda. Jika ponsel tidak sedang diisi daya dan baterai di bawah **15%**, proses akan dihentikan untuk mencegah ponsel mati mendadak.
+* **Cek penyimpanan**: Kalau sisa ruang kosong kurang dari **512MB**, proses berhenti. Ini melindungi ponsel dari bootloop.
+* **Cek baterai**: Kalau ponsel nggak lagi ngecas dan baterai di bawah **15%**, proses berhenti buat mencegah mati mendadak.
 
-### Penyesuaian Latar Belakang (`service.sh`)
-* **Kontrol Inti CPU**: Setelah ponsel Anda selesai booting, skrip latar belakang akan memeriksa prosesor Anda. Skrip ini memaksa compiler latar belakang sistem untuk hanya menggunakan inti CPU kecil yang hemat energi. Ini mencegah ponsel Anda dari overheating atau lag saat Anda menggunakannya.
+### Tuning Latar Belakang (`service.sh`)
+* **Kontrol core CPU**: Setelah ponsel selesai booting, script latar belakang memaksa compiler sistem cuma pakai core CPU kecil yang hemat energi. Ini mencegah overheating atau lag saat kamu pakai ponsel.
 
----
 
-## Persyaratan Sistem
+## Persyaratan
 
 | Persyaratan | Detail |
 |-------------|--------|
 | Android | 7.0+ (API 24+) |
-| Penyimpanan | Sisa penyimpanan minimal 512MB pada partisi `/data` |
-| Baterai | Kapasitas minimal 15% (diabaikan jika perangkat sedang diisi daya) |
+| Penyimpanan | Minimal 512MB ruang kosong di partisi `/data` |
+| Baterai | Minimal 15% (diabaikan kalau lagi ngecas) |
 | Root | Magisk v20.4+, KernelSU, atau APatch |
 
----
 
-## Struktur Berkas
+## Lisensi
 
-```text
-DexForge/
-├── META-INF/
-│   └── com/
-│       └── google/
-│           └── android/
-│               ├── update-binary
-│               └── updater-script
-├── action.sh        # mesin utama pemilihan dan eksekusi kompilasi
-├── changelog.md     # catatan perubahan untuk melacak riwayat versi modul
-├── customize.sh     # pemasangan dan konfigurasi saat modul diinstal
-├── module.prop      # metadata properti modul
-├── service.sh       # late-boot watchdog & pengatur thread/core affinity
-├── uninstall.sh     # menghapus berkas sisa saat modul dihapus
-└── update.json      # konfigurasi metadata pembaruan
-```
-
----
-
-## Pengembang, Kredit & Lisensi
-
-- **Pengembang**: [dyokism](https://github.com/dyokism)
-- **Lisensi**: [MIT](LICENSE)
-- **Kredit & Apresiasi**:
-  - **Android Runtime (ART)** oleh [Google](https://source.android.com/devices/tech/dalvik)
-  - **Manajer Root**: [Magisk](https://github.com/topjohnwu/Magisk), [KernelSU](https://github.com/tiann/KernelSU), dan [APatch](https://github.com/bmax121/APatch)
+Proyek ini dilisensikan di bawah MIT License. Lihat [LICENSE](LICENSE) untuk detail lengkap.
