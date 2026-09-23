@@ -1,24 +1,24 @@
 #!/sbin/sh
 umask 022
-
 ui_print() { echo "$1"; }
-
-# shellcheck disable=SC2034
 OUTFD=$2
-# shellcheck disable=SC2034
 ZIPFILE=$3
-
 mount /data 2>/dev/null
 
-if [ -f /data/adb/magisk/util_functions.sh ]; then
-  # shellcheck disable=SC1091
-  . /data/adb/magisk/util_functions.sh
-  [ "$MAGISK_VER_CODE" -lt 20400 ] && {
-    ui_print "Please install Magisk v20.4+!"
-    exit 1
-  }
-  install_module
-  exit 0
+if [ "$KSU" = "true" ] || [ "$APATCH" = "true" ]; then
+  if [ -f /data/adb/ksu/module.prop ]; then
+    MAGISKTMP=
+  fi
+else
+  if [ -f /data/adb/magisk/util_functions.sh ]; then
+    . /data/adb/magisk/util_functions.sh
+    [ "$MAGISK_VER_CODE" -lt 20400 ] && {
+      ui_print "Please install Magisk v20.4+!"
+      exit 1
+    }
+    install_module
+    exit 0
+  fi
 fi
 
 ui_print "ERROR: No supported root manager detected."

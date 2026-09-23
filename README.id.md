@@ -5,63 +5,82 @@
 </p>
 
 <p align="center">
-  <strong>Optimasi kompilasi ART dan penyelarasan thread CPU Android secara adaptif.</strong>
+  <strong>Optimalkan kompilasi DEX/ART Android secara dinamis berdasarkan perangkat keras Anda.</strong>
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Lisensi-MIT-d35400?style=for-the-badge" alt="Lisensi">
+  <img src="https://img.shields.io/badge/Android-7.0%2B-ff7300?style=for-the-badge&logo=android&logoColor=white" alt="Android">
+  <img src="https://img.shields.io/badge/Versi-2.2-ff9f0a?style=for-the-badge&logo=github&logoColor=white" alt="Versi">
+  <img src="https://img.shields.io/badge/Root-KSU%20%7C%20APatch%20%7C%20Magisk-e65c00?style=for-the-badge&logo=linux&logoColor=white" alt="Root">
+  <br>
+  <br>
   <a href="README.md">English</a> | <a href="README.id.md">Bahasa Indonesia</a>
 </p>
 
-## Ringkasan
+## Deskripsi
 
-Sistem Android menjalankan kompilasi latar belakang dengan profil seragam tanpa mempertimbangkan batas memori atau pola pemakaian aplikasi. DexForge mengoptimalkan eksekusi bytecode DEX dengan memilih filter kompilasi yang disesuaikan dengan kapasitas RAM dan riwayat peluncuran aplikasi. Modul ini juga mengatur alokasi thread compiler dan pembagian core CPU agar proses di latar belakang tidak mengganggu responsivitas antarmuka aplikasi.
+DexForge adalah modul root yang mengoptimalkan aplikasi kamu dengan memilih filter kompilasi DEX terbaik sesuai hardware perangkat.
 
-Penjelasan teknis mekanisme kompilasi tersedia di [COMPILATION_REFERENCE.md](COMPILATION_REFERENCE.md).
 
-## Fitur
+## Kenapa Pakai DexForge?
 
-- Membatasi thread compiler latar belakang ke core efisiensi agar antarmuka tetap lancar.
-- Menentukan filter kompilasi (`speed`, `speed-profile`, `verify`, `quicken`) berdasarkan kapasitas RAM dan frekuensi pemakaian.
-- Tombol Action di root manager untuk menjalankan optimasi manual dengan laporan progres per aplikasi.
-- Menu tombol volume interaktif untuk memilih antara reset total atau kompilasi inkremental.
-- Validasi awal level baterai dan sisa ruang penyimpanan sebelum proses berjalan.
+- **Performa yang disesuaikan**: Otomatis memilih filter kompilasi terbaik (`speed`, `speed-profile`, atau `verify`/`quicken`) berdasarkan kapasitas RAM dan statistik penggunaan aplikasi.
+- **Proteksi keamanan**: Cek level baterai dan sisa penyimpanan sebelum berjalan untuk mencegah error.
+- **Menu cache interaktif**: Opsi untuk membersihkan cache kompilasi sebelum optimasi dimulai supaya mulai dari awal yang bersih.
+
+
+## Cara Penggunaan
+
+### 1. Instalasi
+* Download `DexForge.zip` terbaru dari halaman [Releases](https://github.com/dyokism/DexForge/releases).
+* Flash lewat root manager kamu (Magisk, KernelSU, atau APatch).
+* **Reboot** supaya modul bisa mulai bekerja di latar belakang.
+
+### 2. Menjalankan Optimizer
+* Buka root manager dan tekan tombol **Action** pada modul DexForge.
+
+> [!WARNING]
+> Kalau kamu pilih bersihkan cache, kompilasi di beberapa (dan akhirnya semua) perangkat bakal jauh lebih lama. Lakukan dengan pertimbangan sendiri.
+
+* **Menu Cache**: Saat dimulai, modul akan menanyakan pertanyaan. Tekan **Volume ATAS** kalau mau bersihkan cache lama dulu (mulai bersih). Tekan **Volume BAWAH** (atau tunggu 10 detik) kalau mau pertahankan cache lama dan cuma update.
+* Kamu bisa baca hasilnya nanti di: `/data/adb/modules/DexForge/dexforge.log`
+
+### 3. Mode Uji Coba
+* Mau lihat apa yang DexForge akan lakukan tanpa mengubah apa pun? Buka terminal root (seperti Termux) dan ketik:
+  ```sh
+  su
+  /data/adb/modules/DexForge/action.sh --dry-run
+  ```
+
+
+## Detail Teknis
+
+### Optimasi Hardware & Prioritas Penggunaan Aplikasi
+* **Ponsel flagship (RAM 6GB+)**: Optimasi semua aplikasi untuk `speed` maksimum. Proses satu per satu biar ponsel nggak freeze. Kalau kamu bersihkan cache, modul cek penggunaan aplikasi dan set aplikasi yang jarang dipakai ke `speed-profile` buat hemat waktu. Kalau nggak bersihkan cache, modul skip cek penggunaan biar prosesnya lebih cepat.
+* **Ponsel mid-range (RAM 3GB sampai 6GB)**: Cek penggunaan aplikasi buat tentukan pengaturan terbaik. Aplikasi paling sering dipakai dapat `speed`, aplikasi biasa dapat `speed-profile`, dan aplikasi yang nggak pernah dipakai dapat `verify` (atau `quicken` di Android lama). Ini mencegah ponsel kehabisan memori atau penyimpanan.
+* **Ponsel entry-level (RAM 3GB atau kurang)**: Batasi optimasi ke `speed-profile` untuk aplikasi teratas, dan `verify` atau `quicken` untuk sisanya. Hemat daya CPU dan penyimpanan.
+
+>*Kalau ponsel kamu punya RAM 8GB, bukan berarti ponsel itu beneran "flagship". Ini cuma buat klasifikasi aja :)*
+
+### Pemeriksaan Keamanan Sistem
+* **Cek penyimpanan**: Kalau sisa ruang kosong kurang dari **512MB**, proses berhenti. Ini melindungi ponsel dari bootloop.
+* **Cek baterai**: Kalau ponsel nggak lagi ngecas dan baterai di bawah **15%**, proses berhenti buat mencegah mati mendadak.
+
+### Tuning Latar Belakang (`service.sh`)
+* **Kontrol core CPU**: Setelah ponsel selesai booting, script latar belakang memaksa compiler sistem cuma pakai core CPU kecil yang hemat energi. Ini mencegah overheating atau lag saat kamu pakai ponsel.
+
 
 ## Persyaratan
 
-| Komponen | Spesifikasi Minimum |
-| :--- | :--- |
-| Versi Android | Android 7.0 (API 24) atau lebih baru |
-| Ruang Bebas | Minimal 512 MB pada partisi `/data` |
-| Baterai | Minimal 15% (diabaikan jika sedang mengisi daya) |
-| Manajer Root | Magisk (v20.4+), KernelSU, atau APatch |
+| Persyaratan | Detail |
+|-------------|--------|
+| Android | 7.0+ (API 24+) |
+| Penyimpanan | Minimal 512MB ruang kosong di partisi `/data` |
+| Baterai | Minimal 15% (diabaikan kalau lagi ngecas) |
+| Root | Magisk v20.4+, KernelSU, atau APatch |
 
-## Instalasi
 
-1. Unduh arsip `DexForge.zip` terbaru dari halaman [Releases](https://github.com/dyokism/DexForge/releases).
-2. Pasang berkas zip melalui menu **Modules** di root manager.
-3. Muat ulang (reboot) perangkat agar konfigurasi alokasi CPU aktif.
+## Lisensi
 
-## Konfigurasi
- 
-Setelah boot selesai, DexForge membaca topologi CPU dan menetapkan properti sistem berikut untuk mengisolasi beban kerja compiler:
-
-- **Berkas log**: `/data/adb/modules/DexForge/dexforge.log`
-
-```properties
-pm.dexopt.bg-dexopt=speed-profile
-pm.dexopt.shared=speed
-dalvik.vm.dex2oat-cpu-set=<core_efisiensi>
-dalvik.vm.dex2oat-threads=<jumlah_thread>
-dalvik.vm.background-dex2oat-cpu-set=<core_efisiensi>
-dalvik.vm.background-dex2oat-threads=<jumlah_thread>
-```
-
-## Tombol Action
-
-Kamu bisa menekan tombol **Action** pada kartu DexForge di KernelSU, APatch, atau Magisk kapan saja untuk menjalankan optimasi langsung:
-
-- **Menu Reset Cache**: Tekan tombol **Volume Atas** untuk menghapus cache lama dan mengompilasi ulang dari awal. Tekan **Volume Bawah** (atau tunggu 10 detik) untuk melanjutkan kompilasi inkremental.
-- **Mode Uji Coba (Dry-Run)**: Untuk melihat tindakan tanpa mengubah sistem, jalankan perintah berikut di terminal root:
-  ```bash
-  su -c "/data/adb/modules/DexForge/action.sh --dry-run"
-  ```
+Proyek ini dilisensikan di bawah MIT License. Lihat [LICENSE](LICENSE) untuk detail lengkap.
