@@ -5,80 +5,82 @@
 </p>
 
 <p align="center">
-  <strong>Optimize Android DEX/ART compilations dynamically based on your device hardware.</strong>
+  <strong>Autonomous DEX and ART compilation engine dynamically tuned to your device hardware.</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-d35400?style=for-the-badge" alt="License">
-  <img src="https://img.shields.io/badge/Android-7.0%2B-ff7300?style=for-the-badge&logo=android&logoColor=white" alt="Android">
-  <img src="https://img.shields.io/badge/Version-2.2-ff9f0a?style=for-the-badge&logo=github&logoColor=white" alt="Version">
+  <img src="https://img.shields.io/badge/Android-10.0%2B-ff7300?style=for-the-badge&logo=android&logoColor=white" alt="Android">
+  <img src="https://img.shields.io/badge/Version-3.0.0-ff9f0a?style=for-the-badge&logo=github&logoColor=white" alt="Version">
   <img src="https://img.shields.io/badge/Root-KSU%20%7C%20APatch%20%7C%20Magisk-e65c00?style=for-the-badge&logo=linux&logoColor=white" alt="Root">
-  <br>
-  <br>
-  <a href="README.md">English</a> | <a href="README.id.md">Bahasa Indonesia</a>
 </p>
 
 ## Overview
 
-DexForge is a root module that optimizes your apps by picking the best DEX compiler filter for your specific hardware.
+DexForge is a root module that optimizes your apps in the background by compiling DEX and ART bytecode during verified idle charging windows.
+
+DexForge started because manual compilation scripts made phones burn up and required constantly pressing buttons or volume keys just to get through a run. This rewrite is what it always should have been: silent, completely automatic, and intelligent. You flash it once and forget about it.
 
 
 ## Why Use DexForge?
 
-- **Tailored performance**: Automatically selects the best compiler filter (`speed`, `speed-profile`, or `verify`/`quicken`) based on your device's RAM and app usage stats.
-- **Safety guards**: Checks battery level and storage space before running to prevent errors.
-- **Interactive cache reset**: Lets you optionally purge compilation caches before optimization to start fresh.
+- **Fully autonomous**: Runs quietly in the background while your phone is plugged in with the screen off. No buttons, no interactive prompts, and no manual babysitting.
+- **Hardware-aware CPU pinning**: Binds compiler worker threads strictly to energy-efficient LITTLE CPU cores, preventing overheating and eliminating UI frame drops.
+- **Micro-batching with instant yield**: Compiles 2 to 3 apps per idle cycle and aborts within milliseconds if you wake your screen or unplug the charger.
+- **Zero OAT corruption risk**: Relies on Android's native atomic file staging. Stopping compilation mid-flight removes temporary files cleanly, leaving existing app caches untouched.
+- **Live status dashboard**: Displays real-time compiler state, battery capacity, and temperature directly on your module card in KernelSU, APatch, or Magisk.
 
 
 ## How to Use
 
 ### 1. Installation
-* Download the latest `DexForge.zip` from [Releases](https://github.com/dyokism/DexForge/releases).
-* Flash it using your root manager (Magisk, KernelSU, or APatch).
-* **Reboot** so the module can start working in the background.
+* Download `DexForge.zip` from [Releases](https://github.com/dyokism/DexForge/releases).
+* Flash the archive using your root manager (KernelSU, APatch, or Magisk).
+* **Reboot** your device so the background service can initialize.
 
-### 2. Running the Optimizer
-* Open your root manager and press the **Action** button on the DexForge module.
+### 2. Automatic Background Optimization
+Once rebooted, DexForge takes over automatically. You do not need to press any action buttons or keep apps open in the foreground.
 
-> [!WARNING]
-> If you clear the cache, compilation on some (and eventually all) devices will take significantly longer. Do it at your own discretion.
+Whenever your device meets these conditions:
+1. **Charging** (AC, USB, or Wireless)
+2. **Battery >= 50%**
+3. **Screen off for at least 2 minutes**
+4. **Battery temperature under 38.5°C**
 
-* **Cache Menu**: When it starts, it asks you a question. Press **Volume UP** to clear your old caches first (clean start). Press **Volume DOWN** (or wait 10 seconds) to keep your old caches and just update them.
-* You can read the results later at: `/data/adb/modules/DexForge/dexforge.log`
+DexForge begins compiling your unoptimized apps in small batches, prioritizing your user-installed apps first. If you pick up your phone or turn on the screen, DexForge yields immediately.
 
-### 3. Test Mode
-* Want to see what DexForge will do without actually changing anything? Open a root terminal (like Termux) and type:
+### 3. Monitoring Status and Logs
+* **Live status**: Check the DexForge module description inside KernelSU, APatch, or Magisk. It dynamically updates with live state (e.g. `[Active • Compiling com.example.app (3/15) • 32.5°C]`).
+* **Live log streaming**:
   ```sh
-  su
-  /data/adb/modules/DexForge/action.sh --dry-run
+  su -c tail -f /data/adb/modules_config/DexForge/DexForge.log
+  ```
+* **Kernel ring buffer**:
+  ```sh
+  su -c dmesg | grep DexForge
   ```
 
 
 ## Technical Details
 
-### Hardware Optimization & App Usage Priority
-* **Flagship phones (6GB+ RAM)**: Optimizes all apps for maximum `speed`. Processes apps one by one to avoid freezing the phone. If you clear the cache, it checks your app usage and sets rarely used apps to `speed-profile` to save time. If you don't clear cache, it skips usage checks to speed things up.
-* **Mid-range phones (3GB to 6GB RAM)**: Checks your app usage to pick the best setup. Most used apps get `speed`, normal apps get `speed-profile`, and unused apps get `verify` (or `quicken` on older Android). This prevents the phone from running out of memory or storage.
-* **Entry-level phones (3GB RAM or less)**: Limits optimization to `speed-profile` for your top apps, and `verify` or `quicken` for everything else. Saves CPU power and storage space.
-
->*If you have 8GB of RAM, it doesn't mean your phone is actually a "flagship". This is just for better classification :)*
+### Background Tuning and LITTLE-Core Pinning (`service.sh`)
+* **CPU core control**: Isolates the efficiency cluster via `/sys/devices/system/cpu/present` and configures `dalvik.vm.dex2oat-cpu-set`, `dalvik.vm.dex2oat-threads`, and background cgroup profiles (`-r bg-dexopt -p PRIORITY_BACKGROUND`). This ensures compiler workers never starve foreground UI threads or touch prime cores.
+* **Native job deconfliction**: Cancels competing native Android bg-dexopt tasks (Job 27873780 on Android 14+ and Job 800 on Android 10 to 13) to avoid Binder transaction exhaustion (`0x80000002`) and install lock contention.
 
 ### System Safety Checks
-* **Storage check**: If you have less than **512MB** free space, it stops running. This protects your phone from getting stuck in a bootloop.
-* **Battery check**: If your phone is not charging and the battery is under **15%**, it stops running to prevent sudden shutdowns.
-
-### Background Tuning (`service.sh`)
-* **CPU core control**: After your phone finishes booting, a background script forces the system's background compiler to only use the small, energy-efficient CPU cores. This prevents overheating or lag while you use your phone.
+* **Zero-IPC sysfs gatekeeper**: Bypasses heavy `system_server` IPC by reading kernel virtual files directly (`/sys/class/power_supply/battery/*` and `/sys/class/backlight/*`).
+* **Storage failsafe**: Verifies at least **1024MB** of free space on `/data` before starting compilation to prevent low storage bootloops.
+* **Thermal ceiling**: Pauses compilation if battery temperature exceeds **38.5°C**, and kills active workers immediately if temperature reaches **39.0°C**.
 
 
 ## Requirements
 
 | Requirement | Details |
 |-------------|---------|
-| Android | 7.0+ (API 24+) |
-| Storage | Minimum 512MB free space on `/data` partition |
-| Battery | Minimum 15% charge (waived if charging) |
-| Root | Magisk v20.4+, KernelSU, or APatch |
+| Android | 10.0+ (API 29 to API 36+) |
+| Storage | Minimum 1024MB free space on `/data` partition |
+| Condition | Charging + Battery >= 50% + Screen off >= 2m |
+| Root | KernelSU v0.6.0+, APatch v0.10.0+, or Magisk v26.0+ |
 
 
 ## License

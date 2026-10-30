@@ -1,16 +1,26 @@
 #!/system/bin/sh
+# shellcheck disable=SC2034,SC3043,SC1091
 
-# Requires Nougat ART daemon for speed-profile compilation. Use abort since exit traps the root manager.
-if [ -z "$API" ] || [ "$API" -lt 24 ]; then
-  abort "[!] Unsupported Android version (API $API). Requires API 24+ (Nougat+)."
+ui_print "- Target Architecture : $ARCH"
+ui_print "- Android SDK API Level: $API"
+
+# Android 10 (API 29) is the minimum baseline for modular ART runtime and profiles
+if [ "${API:-0}" -lt 29 ]; then
+    abort "! Unsupported Android version: API $API detected (Requires Android 10+ / API 29+)."
 fi
 
-ui_print "- Installing DexForge..."
-ui_print "- Target Path: $MODPATH"
+if [ -f "$MODPATH/util.sh" ]; then
+    . "$MODPATH/util.sh"
+else
+    abort "! Corrupted module package: util.sh is missing."
+fi
 
-# Prevent execution denial when running from CLI or service daemon.
-set_perm "$MODPATH/action.sh" 0 0 0755
-set_perm "$MODPATH/uninstall.sh" 0 0 0755
+setup_persistent_storage
+
+set_perm_recursive "$MODPATH" 0 0 0755 0644
 set_perm "$MODPATH/service.sh" 0 0 0755
+set_perm "$MODPATH/dexforge_daemon.sh" 0 0 0755
+set_perm "$MODPATH/uninstall.sh" 0 0 0755
+set_perm "$MODPATH/util.sh" 0 0 0644
 
-ui_print "- Action script registered successfully."
+ui_print "- DexForge installation completed."
