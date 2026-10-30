@@ -186,6 +186,10 @@ scan_unoptimized_packages() {
             "["*.*"]")
                 _tmp_pkg="${_trimmed#\[}"
                 _curr_pkg="${_tmp_pkg%%\]*}"
+                # Reject nested oat/art descriptions and file paths (valid packages contain no space or slash)
+                case "$_curr_pkg" in
+                    *" "*|*"/"*) _curr_pkg="" ;;
+                esac
                 ;;
             *"[status="*)
                 if [ -n "$_curr_pkg" ]; then
