@@ -1,7 +1,7 @@
 id=DexForge
 name=DexForge
-version=v3.0.0
-versionCode=300
+version=v3.0.1
+versionCode=301
 author=dyokism
 description=[Idle • Initialized • Waiting for boot]
 updateJson=https://raw.githubusercontent.com/dyokism/DexForge/main/module/update.json

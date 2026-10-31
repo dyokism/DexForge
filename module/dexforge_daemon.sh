@@ -47,16 +47,45 @@ get_sdk_version() {
 
 # Sysfs direct reads bypass system_server Binder IPC and HAL wakeups
 check_charging() {
-    _status=""
-    for _st in /sys/class/power_supply/battery/status /sys/class/power_supply/*/status; do
+    _status="Unknown"
+
+    for _st in /sys/class/power_supply/battery/status \
+               /sys/devices/platform/google,battery/power_supply/battery/status \
+               /sys/devices/platform/sec-battery/power_supply/battery/status \
+               /sys/class/power_supply/*/status; do
         if [ -r "$_st" ]; then
             IFS= read -r _status < "$_st"
-            case "$_status" in
-                Charging|Full|[cC]harging|[fF]ull) return 0 ;;
-            esac
+            [ -n "$_status" ] && break
         fi
     done
-    return 1
+
+    case "$_status" in
+        Charging|Full|[cC]harging|[fF]ull)
+            return 0
+            ;;
+        "Not charging"|[nN]ot\ [cC]harging)
+            # Pixel 80% limit, Samsung Protect Battery, Asus Bypass Charging:
+            # External charger is online and battery is above safe operational baseline (>=50%)
+            _c=$(get_battery_capacity)
+            if [ "${_c:-0}" -ge 50 ] 2>/dev/null; then
+                for _online in /sys/class/power_supply/*/online; do
+                    [ -r "$_online" ] || continue
+                    case "$_online" in
+                        */battery/*|*/bms/*|*/otg/*) continue ;;
+                    esac
+                    _val=""
+                    IFS= read -r _val < "$_online"
+                    if [ "$_val" = "1" ]; then
+                        return 0
+                    fi
+                done
+            fi
+            return 1
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 
 get_battery_temp() {
@@ -105,27 +134,52 @@ check_battery_capacity() {
 }
 
 check_screen_off() {
-    _found=0
-    # Must inspect all readable nodes; some vendors provide a dummy 0 node alongside the active panel
-    for bl in /sys/class/leds/lcd-backlight/brightness /sys/class/backlight/*/brightness; do
-        [ -r "$bl" ] || continue
-        _found=1
+    _max_br=0
+    _max_scale=255
+    _found_node=0
+
+    # Aggregate maximum brightness across all readable backlight nodes (defeats dummy 0 nodes)
+    for _bl in /sys/class/backlight/*/brightness /sys/class/leds/lcd-backlight/brightness; do
+        [ -r "$_bl" ] || continue
+        _found_node=1
         _br=""
-        IFS= read -r _br < "$bl"
-        if [ -n "$_br" ] && [ "$_br" -gt 0 ] 2>/dev/null; then
-            return 1
+        IFS= read -r _br < "$_bl"
+        case "$_br" in
+            ''|*[!0-9]*) continue ;;
+        esac
+        if [ "$_br" -gt "$_max_br" ] 2>/dev/null; then
+            _max_br="$_br"
+            _bl_dir="${_bl%/brightness}"
+            if [ -r "$_bl_dir/max_brightness" ]; then
+                _mbr=""
+                IFS= read -r _mbr < "$_bl_dir/max_brightness"
+                case "$_mbr" in
+                    ''|*[!0-9]*) _max_scale=255 ;;
+                    *) [ "$_mbr" -gt 0 ] 2>/dev/null && _max_scale="$_mbr" ;;
+                esac
+            fi
         fi
     done
-    if [ "$_found" -eq 1 ]; then
+
+    # Fast path: If all hardware backlight nodes read 0, panel is completely unlit
+    if [ "$_found_node" -eq 1 ] && [ "$_max_br" -eq 0 ]; then
         return 0
     fi
 
-    # Fallback to framework wakefulness state if sysfs nodes are absent
-    _wake="$(dumpsys power 2>/dev/null | grep -m 1 'mWakefulness=' | cut -d= -f2)"
-    case "$_wake" in
-        Awake*) return 1 ;;
-        *) return 0 ;;
-    esac
+    # AOD / Doze check: Low non-zero luminance (<= 8% max) or missing sysfs nodes
+    _aod_thresh=$(expr "$_max_scale" \* 8 / 100)
+    [ "$_aod_thresh" -lt 15 ] && _aod_thresh=15
+
+    if [ "$_found_node" -eq 0 ] || [ "$_max_br" -le "$_aod_thresh" ] 2>/dev/null; then
+        _wake="$(dumpsys power 2>/dev/null | grep -E -m 1 "mWakefulness=|Display Power: state=")"
+        case "$_wake" in
+            *Asleep*|*Dozing*|*state=OFF*|*state=DOZE*)
+                return 0
+                ;;
+        esac
+    fi
+
+    return 1
 }
 
 # Cancels native BackgroundDexoptJob to prevent mInstallLock contention and Binder buffer exhaustion
@@ -298,9 +352,28 @@ compile_micro_batch() {
         done
 
         if [ "$_watchdog_abort" -eq 1 ]; then
-            # SIGTERM to dex2oat triggers artd/installd unlinking of .tmp files with zero oat corruption
-            killall -TERM dex2oat 2>/dev/null || true
+            # Cancel ART Service job on Android 14+
+            if [ "$_sdk" -ge 34 ] 2>/dev/null; then
+                cmd package bg-dexopt-job --cancel >/dev/null 2>&1 || true
+            fi
+
+            # Terminate the local cmd package compile wrapper
             kill -TERM "$compile_pid" 2>/dev/null || true
+
+            # Enumerate /proc/[0-9]*/comm directly to catch dex2oat, dex2oat32, and dex2oat64
+            # (Immune to Android 15/16 art_exec --process-name-suffix argv[0] mutation)
+            for _comm_file in /proc/[0-9]*/comm; do
+                [ -r "$_comm_file" ] || continue
+                IFS= read -r _cname < "$_comm_file"
+                case "$_cname" in
+                    dex2oat|dex2oat32|dex2oat64)
+                        _target_pid="${_comm_file#/proc/}"
+                        _target_pid="${_target_pid%/comm}"
+                        kill -TERM "$_target_pid" 2>/dev/null || true
+                        ;;
+                esac
+            done
+
             wait "$compile_pid" 2>/dev/null || true
             deconflict_native_jobs
             _interrupted=1

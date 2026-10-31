@@ -18,36 +18,89 @@ while [ "$(getprop sys.boot_completed)" != "1" ]; do
     fi
 done
 
-total_cpus=8
-if [ -r /sys/devices/system/cpu/present ]; then
-    IFS= read -r cpu_present < /sys/devices/system/cpu/present
-    case "$cpu_present" in
-        *-*)
-            max_cpu="${cpu_present#*-}"
-            max_cpu="${max_cpu%%,*}"
-            min_cpu="${cpu_present%%-*}"
-            if [ -n "$max_cpu" ] && [ "$max_cpu" -eq "$max_cpu" ] 2>/dev/null; then
-                total_cpus=$(expr "$max_cpu" - "$min_cpu" + 1)
-            fi
-            ;;
-    esac
+# Resolve efficiency cluster deterministically across GKI 4.19-6.6 and diverse SoCs
+_raw_cpus=""
+
+# Priority 1: Hardware DVFS domain for CPU0 (immune to DynamIQ 0-7 package_cpus_list)
+if [ -r "/sys/devices/system/cpu/cpufreq/policy0/related_cpus" ]; then
+    read -r _raw_cpus < "/sys/devices/system/cpu/cpufreq/policy0/related_cpus"
+elif [ -r "/sys/devices/system/cpu/cpu0/cpufreq/related_cpus" ]; then
+    read -r _raw_cpus < "/sys/devices/system/cpu/cpu0/cpufreq/related_cpus"
+elif [ -r "/sys/devices/system/cpu/cpu0/cpufreq/affected_cpus" ]; then
+    read -r _raw_cpus < "/sys/devices/system/cpu/cpu0/cpufreq/affected_cpus"
 fi
 
-# Lower-half cores target the efficiency cluster, preventing compiler spikes on prime cores
-little_count=$(expr "$total_cpus" / 2)
-[ "$little_count" -lt 1 ] && little_count=1
+# Priority 2: Minimum cpu_capacity tier scan (fallback if cpufreq sysfs is hidden)
+if [ -z "$_raw_cpus" ] && [ -r "/sys/devices/system/cpu/cpu0/cpu_capacity" ]; then
+    _min_cap=999999
+    for _cap_file in /sys/devices/system/cpu/cpu[0-9]*/cpu_capacity; do
+        [ -r "$_cap_file" ] || continue
+        read -r _cap < "$_cap_file"
+        case "$_cap" in
+            ''|*[!0-9]*) continue ;;
+        esac
+        if [ "$_cap" -lt "$_min_cap" ] 2>/dev/null; then
+            _min_cap="$_cap"
+        fi
+    done
+    for _cpu_dir in /sys/devices/system/cpu/cpu[0-9]*; do
+        [ -r "$_cpu_dir/cpu_capacity" ] || continue
+        read -r _cap < "$_cpu_dir/cpu_capacity"
+        if [ "$_cap" = "$_min_cap" ]; then
+            _cid="${_cpu_dir##*cpu}"
+            _raw_cpus="${_raw_cpus:+$_raw_cpus }$_cid"
+        fi
+    done
+fi
 
-case "$little_count" in
-    1) cpu_mask="0" ;;
-    2) cpu_mask="0,1" ;;
-    3) cpu_mask="0,1,2" ;;
-    4) cpu_mask="0,1,2,3" ;;
-    5) cpu_mask="0,1,2,3,4" ;;
-    6) cpu_mask="0,1,2,3,4,5" ;;
-    *) cpu_mask="0,1,2,3" ;;
-esac
+# Priority 3: Topology cluster_cpus_list or core_siblings_list (legacy kernel fallback)
+if [ -z "$_raw_cpus" ]; then
+    if [ -r "/sys/devices/system/cpu/cpu0/topology/cluster_cpus_list" ]; then
+        read -r _raw_cpus < "/sys/devices/system/cpu/cpu0/topology/cluster_cpus_list"
+    elif [ -r "/sys/devices/system/cpu/cpu0/topology/core_siblings_list" ]; then
+        read -r _raw_cpus < "/sys/devices/system/cpu/cpu0/topology/core_siblings_list"
+    fi
+fi
 
-thread_count="$little_count"
+# Normalize syntax ("0-2", "0 1 2", "0,1,2", "0-2,4") into space-separated integers
+_expanded=""
+_old_ifs="$IFS"
+IFS=', '
+for _token in $_raw_cpus; do
+    case "$_token" in
+        *-*)
+            _start="${_token%-*}"
+            _end="${_token#*-}"
+            _curr="$_start"
+            while [ "$_curr" -le "$_end" ] 2>/dev/null; do
+                _expanded="${_expanded:+$_expanded }$_curr"
+                _curr=$(expr "$_curr" + 1)
+            done
+            ;;
+        [0-9]*)
+            _expanded="${_expanded:+$_expanded }$_token"
+            ;;
+    esac
+done
+IFS="$_old_ifs"
+
+# Guard: If fallback returned full-chip (8+ cores) from DynamIQ core_siblings_list, clamp to 0-3
+_count=0
+for _c in $_expanded; do
+    _count=$(expr "$_count" + 1)
+done
+if [ "$_count" -ge 8 ] || [ -z "$_expanded" ]; then
+    _expanded="0 1 2 3"
+    _count=4
+fi
+
+# Build comma-separated mask and thread count
+cpu_mask=""
+for _c in $_expanded; do
+    cpu_mask="${cpu_mask:+$cpu_mask,}$_c"
+done
+
+thread_count="$_count"
 [ "$thread_count" -lt 2 ] && thread_count=2
 
 set_prop_safe dalvik.vm.dex2oat-cpu-set "$cpu_mask"
